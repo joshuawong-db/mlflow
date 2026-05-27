@@ -382,7 +382,7 @@ class TracesDemoGenerator(BaseDemoGenerator):
         root = mlflow.start_span_no_context(
             name="agent",
             span_type=SpanType.AGENT,
-            inputs={"query": trace_def.query},
+            inputs={"messages": [{"role": "user", "content": trace_def.query}]},
             metadata={DEMO_VERSION_TAG: version, DEMO_TRACE_TYPE_TAG: "agent"},
             start_time_ns=start_ns,
         )
@@ -425,10 +425,10 @@ class TracesDemoGenerator(BaseDemoGenerator):
             },
             start_time_ns=llm_start,
         )
-        llm.set_outputs({"response": response})
+        llm.set_outputs({"choices": [{"message": {"role": "assistant", "content": response}}]})
         llm.end(end_time_ns=end_ns - 5000)
 
-        root.set_outputs({"response": response})
+        root.set_outputs({"choices": [{"message": {"role": "assistant", "content": response}}]})
         root.end(end_time_ns=end_ns)
 
         return root.trace_id
