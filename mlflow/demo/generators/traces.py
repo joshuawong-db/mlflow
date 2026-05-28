@@ -195,6 +195,8 @@ def _emit_react_children(
 
     For N tools, emits N+1 LLM spans alternating with N TOOL spans:
     LLM(decide call_1) → TOOL(1) → LLM(decide call_2) → TOOL(2) → … → LLM(final).
+
+    If there are no tools, emits a single LLM span.
     """
     span_name = _PROVIDER_TO_LLM_SPAN_NAME[model.provider]
     tool_schemas = _tool_schemas(tools)
@@ -481,7 +483,7 @@ class TracesDemoGenerator(BaseDemoGenerator):
 
         model = GPT_5_2
         llm = mlflow.start_span_no_context(
-            name="generate_response",
+            name=_PROVIDER_TO_LLM_SPAN_NAME[model.provider],
             span_type=SpanType.LLM,
             parent_span=root,
             inputs={
@@ -611,7 +613,7 @@ class TracesDemoGenerator(BaseDemoGenerator):
 
         model = GEMINI_3_PRO
         llm = mlflow.start_span_no_context(
-            name="generate_response",
+            name=_PROVIDER_TO_LLM_SPAN_NAME[model.provider],
             span_type=SpanType.LLM,
             parent_span=root,
             inputs={

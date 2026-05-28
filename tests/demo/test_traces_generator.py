@@ -96,7 +96,9 @@ def test_traces_have_expected_structure():
     assert "render_prompt" in all_span_names
     assert "embed_query" in all_span_names
     assert "retrieve_docs" in all_span_names
-    assert "generate_response" in all_span_names
+    assert "chat.completions.create" in all_span_names  # OpenAI
+    assert "messages.create" in all_span_names  # Anthropic
+    assert "generate_content" in all_span_names  # Google
 
 
 def test_traces_have_version_metadata():
@@ -297,9 +299,8 @@ def test_span_name_matches_provider():
     traces = client.search_traces(locations=[experiment.experiment_id], max_results=100)
 
     for trace in traces:
-        if trace.info.trace_metadata.get(DEMO_TRACE_TYPE_TAG) not in {"agent", "session"}:
-            continue
         for span in trace.data.spans:
+            # Multimodal traces are of SpanType.CHAT_MODEL and so will be caught here
             if span.span_type != SpanType.LLM:
                 continue
             provider = span.attributes.get(SpanAttributeKey.MODEL_PROVIDER)
