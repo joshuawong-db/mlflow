@@ -1551,6 +1551,7 @@ module.exports = {
   "mlflow.genai-traces-table.issue-tag-overflow-trigger": "",
   "mlflow.genai-traces-table.logged_model_cell.model_link": "",
   "mlflow.genai-traces-table.prompt_link": "",
+  "mlflow.genai-traces-table.response-cell-full-value": "",
   "mlflow.genai-traces-table.run-judges": "",
   "mlflow.genai-traces-table.run_name_link": "",
   "mlflow.genai-traces-table.session": "",

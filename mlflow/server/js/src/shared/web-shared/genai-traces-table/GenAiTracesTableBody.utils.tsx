@@ -98,24 +98,119 @@ export function compareAssessmentValues(
   return 'equal';
 }
 
+/**
+ * Pulls a human-readable string out of a serialized response payload.
+ *
+ * Tries (in priority order):
+ *   1a. Plain string wrapper:           {response: "..."}
+ *   1b. OpenAI nested under `response`: {response: {choices: [{message: {content}}]}}
+ *   2.  OpenAI raw:                     {choices: [{message: {content}}]}
+ *   3.  LangChain AIMessage:            {content: "..."}
+ *   4.  ChatAgent / message list:       {messages: [..., {role: "assistant", content: "..."}]}
+ *        — prefers the last assistant turn; falls back to the last string-content turn.
+ *   5.  JSON-encoded plain string:      '"hello"' -> 'hello'
+ *   6.  Plain non-JSON string passes through unchanged
+ *
+ * Falls back to {@link stringifyValue} if none of the shapes match.
+ */
 export const formatResponseTitle = (outputs: string) => {
-  let outputsTitle = outputs;
-
-  try {
-    const parsedOutputs = JSON.parse(outputs);
-
-    // Try to parse OpenAI messages
-    const choices = parsedOutputs['response']['choices'];
-    if (Array.isArray(choices) && !isNil(choices[0]?.message?.content)) {
-      outputsTitle = choices[0]?.message?.content;
-    } else {
-      outputsTitle = stringifyValue(outputs);
-    }
-  } catch {
-    outputsTitle = stringifyValue(outputs);
+  if (!outputs) {
+    return outputs;
   }
 
-  return outputsTitle;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(outputs);
+  } catch {
+    // Not JSON — assume a plain string passthrough.
+    return outputs;
+  }
+
+  // JSON-encoded plain string -> unwrap.
+  if (typeof parsed === 'string') {
+    return parsed;
+  }
+
+  const extracted = extractResponseText(parsed);
+  if (!isNil(extracted)) {
+    return extracted;
+  }
+
+  return stringifyValue(outputs);
+};
+
+const extractResponseText = (parsed: unknown): string | undefined => {
+  if (!parsed || typeof parsed !== 'object') {
+    return undefined;
+  }
+  const record = parsed as Record<string, unknown>;
+
+  // 1. OpenAI nested under `response` (object form), or a plain `{response: "..."}` wrapper.
+  const responseField = record['response'];
+  if (typeof responseField === 'string') {
+    return responseField;
+  }
+  const nestedChoices = (responseField as Record<string, unknown> | undefined)?.['choices'];
+  const nestedContent = getFirstChoiceContent(nestedChoices);
+  if (!isNil(nestedContent)) {
+    return nestedContent;
+  }
+
+  // 2. OpenAI raw choices
+  const rawContent = getFirstChoiceContent(record['choices']);
+  if (!isNil(rawContent)) {
+    return rawContent;
+  }
+
+  // 3. LangChain AIMessage
+  if (typeof record['content'] === 'string') {
+    return record['content'];
+  }
+
+  // 4. ChatAgent / message list — prefer the last assistant turn with string content,
+  // falling back to the last entry with string content so partial/legacy traces still
+  // surface something readable.
+  const messages = record['messages'];
+  if (Array.isArray(messages) && messages.length > 0) {
+    const assistantContent = findLastMessageContent(messages, 'assistant');
+    if (!isNil(assistantContent)) {
+      return assistantContent;
+    }
+    const anyContent = findLastMessageContent(messages);
+    if (!isNil(anyContent)) {
+      return anyContent;
+    }
+  }
+
+  return undefined;
+};
+
+const findLastMessageContent = (messages: unknown[], requiredRole?: string): string | undefined => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (!message || typeof message !== 'object') {
+      continue;
+    }
+    const record = message as Record<string, unknown>;
+    if (requiredRole && record['role'] !== requiredRole) {
+      continue;
+    }
+    if (typeof record['content'] === 'string') {
+      return record['content'];
+    }
+  }
+  return undefined;
+};
+
+const getFirstChoiceContent = (choices: unknown): string | undefined => {
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return undefined;
+  }
+  const message = (choices[0] as Record<string, unknown> | undefined)?.['message'] as
+    | Record<string, unknown>
+    | undefined;
+  const content = message?.['content'];
+  return typeof content === 'string' ? content : undefined;
 };
 
 export const getColumnConfig = (

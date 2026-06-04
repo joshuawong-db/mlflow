@@ -109,6 +109,96 @@ export function formatDateTime(timestamp: timestampType, intl: IntlShape, option
   });
 }
 
+/**
+ * Maximum number of characters to render in the response cell before truncating.
+ * The cell is one line tall with ellipsis, but we also cap the markdown input
+ * so heavy formatting (lists, code) does not blow out cell height.
+ */
+const RESPONSE_CELL_PREVIEW_MAX_CHARS = 200;
+
+/**
+ * Trims `value` so that the response cell stays single-line:
+ *   - collapses runs of whitespace (incl. newlines) into single spaces so list
+ *     items and paragraphs flow as one line instead of being clipped at the
+ *     first '\n'
+ *   - hard-caps at {@link RESPONSE_CELL_PREVIEW_MAX_CHARS} characters
+ */
+const truncateForCellPreview = (value: string): string => {
+  const collapsed = value.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= RESPONSE_CELL_PREVIEW_MAX_CHARS) {
+    return collapsed;
+  }
+  return `${collapsed.slice(0, RESPONSE_CELL_PREVIEW_MAX_CHARS)}…`;
+};
+
+/**
+ * Renders the response cell as plain text — the upstream `formatResponseTitle` already
+ * unwraps the readable string out of known LLM payload shapes, so the cell just needs to
+ * present it. When a search query is active, matches are highlighted inline. When the
+ * preview is truncated, the full value is shown in a hover tooltip.
+ *
+ * We intentionally render plain text here rather than markdown: untrusted LLM output in
+ * a markdown surface introduces image-autoload tracking, clickable phishing links, and
+ * heavy block components (code fences, tables) inside a single-line cell. A future PR
+ * can revisit inline-markdown styling with the appropriate hardening.
+ */
+export const ResponseCellContent: React.FC<{ value: string; searchQuery?: string }> = ({ value, searchQuery }) => {
+  if (!value) {
+    return (
+      <Typography.Text
+        color="secondary"
+        css={{
+          fontStyle: 'italic',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        null
+      </Typography.Text>
+    );
+  }
+
+  const preview = truncateForCellPreview(value);
+  const isTruncated = preview !== value;
+
+  const inner = (
+    <div
+      css={{
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {searchQuery?.trim() ? highlightSearchInText(preview, searchQuery) : preview}
+    </div>
+  );
+
+  if (!isTruncated) {
+    return inner;
+  }
+
+  return (
+    <Tooltip
+      componentId="mlflow.genai-traces-table.response-cell-full-value"
+      content={
+        <span css={{ whiteSpace: 'pre-wrap', display: 'block', maxWidth: 480 }}>{truncateForTooltip(value)}</span>
+      }
+    >
+      {inner}
+    </Tooltip>
+  );
+};
+
+/**
+ * Cap tooltip content so very large responses don't blow out the hover preview.
+ * The user can click into the trace detail view for the full payload.
+ */
+const RESPONSE_TOOLTIP_MAX_CHARS = 2000;
+
+const truncateForTooltip = (value: string): string =>
+  value.length <= RESPONSE_TOOLTIP_MAX_CHARS ? value : `${value.slice(0, RESPONSE_TOOLTIP_MAX_CHARS)}…`;
+
 export const assessmentCellRenderer = (
   theme: ThemeType,
   intl: IntlShape,
@@ -866,49 +956,10 @@ export const traceInfoCellRenderer = (
   } else if (colId === RESPONSE_COLUMN_ID) {
     const value = currentTraceInfo ? formatResponseTitle(getTraceInfoOutputs(currentTraceInfo)) : '';
     const otherValue = otherTraceInfo ? formatResponseTitle(getTraceInfoOutputs(otherTraceInfo)) : '';
-    const displayValue = value && searchQuery ? highlightSearchInText(value, searchQuery) : value;
-    const displayOtherValue = otherValue && searchQuery ? highlightSearchInText(otherValue, searchQuery) : otherValue;
     return (
       <StackedComponents
-        first={
-          displayValue ? (
-            <div css={{ overflow: 'hidden', textOverflow: 'ellipsis' }} title={value}>
-              {displayValue}
-            </div>
-          ) : (
-            <Typography.Text
-              color="secondary"
-              css={{
-                fontStyle: 'italic',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              null
-            </Typography.Text>
-          )
-        }
-        second={
-          isComparing &&
-          (displayOtherValue ? (
-            <div css={{ overflow: 'hidden', textOverflow: 'ellipsis' }} title={otherValue}>
-              {displayOtherValue}
-            </div>
-          ) : (
-            <Typography.Text
-              color="secondary"
-              css={{
-                fontStyle: 'italic',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              null
-            </Typography.Text>
-          ))
-        }
+        first={<ResponseCellContent value={value} searchQuery={searchQuery} />}
+        second={isComparing && <ResponseCellContent value={otherValue} searchQuery={searchQuery} />}
       />
     );
   } else if (colId === LOGGED_MODEL_COLUMN_ID) {
