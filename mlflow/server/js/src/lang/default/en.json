@@ -1839,6 +1839,10 @@
     "defaultMessage": "Duration:",
     "description": "Row title for the duration of runs on the experiment compare runs page"
   },
+  "7lPAry": {
+    "defaultMessage": "Skills Performance",
+    "description": "Title for the skills performance summary section"
+  },
   "7lROwq": {
     "defaultMessage": "Models",
     "description": "Label for the Models tab in the MLflow experiment navbar"
@@ -1890,6 +1894,10 @@
   "7x6xu8": {
     "defaultMessage": "Create prompt",
     "description": "Label for the create prompt button on the registered prompts page"
+  },
+  "7xmexV": {
+    "defaultMessage": "Table",
+    "description": "Table view toggle label"
   },
   "7yW27D": {
     "defaultMessage": "Total Count",
@@ -3282,6 +3290,10 @@
   "FC9mcS": {
     "defaultMessage": "Parallel coordinates",
     "description": "Experiment tracking > runs charts > add chart menu > parallel coordinates"
+  },
+  "FDaboO": {
+    "defaultMessage": "Avg latency per call",
+    "description": "Chart subtitle for skill latency chart"
   },
   "FFe+Ug": {
     "defaultMessage": "Type a value",
@@ -5670,6 +5682,10 @@
   "SMVe/s": {
     "defaultMessage": "Save Changes",
     "description": "Save changes button text"
+  },
+  "SNQMUd": {
+    "defaultMessage": "Skill",
+    "description": "Column header for skill name"
   },
   "SNvZyR": {
     "defaultMessage": "Time",
@@ -10711,6 +10727,10 @@
     "defaultMessage": "Please select metrics",
     "description": "Placeholder text for metrics in parallel coordinates plot in MLflow"
   },
+  "r5lxzV": {
+    "defaultMessage": "Chart",
+    "description": "Chart view toggle label"
+  },
   "r5t1Je": {
     "defaultMessage": "Show execution timeline",
     "description": "Tooltip for a button that shows execution timeline info in the trace UI."
@@ -12094,6 +12114,10 @@
   "yNjPQQ": {
     "defaultMessage": "Enter current password",
     "description": "Placeholder for the current-password input"
+  },
+  "yOp/HU": {
+    "defaultMessage": "avg latency per invocation · sorted by call count",
+    "description": "Subtitle for the skills performance summary section"
   },
   "yPdr5F": {
     "defaultMessage": "Does app's response directly address the user's input?",

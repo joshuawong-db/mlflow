@@ -247,6 +247,8 @@ export enum SpanDimensionKey {
   MODEL_NAME = 'span_model_name',
   /** Model provider dimension */
   MODEL_PROVIDER = 'span_model_provider',
+  /** Skill name dimension (mlflow.skill.name attribute) */
+  SKILL_NAME = 'span_skill_name',
 }
 
 /**

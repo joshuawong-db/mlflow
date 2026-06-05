@@ -31,6 +31,7 @@ import { ToolCallChartsSection } from './components/ToolCallChartsSection';
 import { LazyToolUsageChart } from './components/LazyToolUsageChart';
 import { LazyToolLatencyChart } from './components/LazyToolLatencyChart';
 import { LazyToolPerformanceSummary } from './components/LazyToolPerformanceSummary';
+import { LazySkillPerformanceSummary } from './components/LazySkillPerformanceSummary';
 import { TabContentContainer, ChartGrid } from './components/OverviewLayoutComponents';
 import { TimeUnitSelector } from './components/TimeUnitSelector';
 import type { TimeUnit } from './utils/timeUtils';
@@ -362,6 +363,9 @@ const ExperimentGenAIOverviewPageImpl = () => {
 
                   {/* Tool error rate charts - dynamically rendered based on available tools */}
                   <ToolCallChartsSection />
+
+                  {/* Skills performance summary */}
+                  <LazySkillPerformanceSummary />
                 </>
               ) : (
                 <Typography.Text color="secondary">

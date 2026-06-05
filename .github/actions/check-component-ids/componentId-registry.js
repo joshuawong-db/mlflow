@@ -894,6 +894,8 @@ module.exports = {
   "mlflow.charts.line_chart_configure.y_axis_min": "",
   "mlflow.charts.parallel_coords_chart_configure_button": "",
   "mlflow.charts.scatter_card_title.dataset_tag": "",
+  "mlflow.charts.skill_performance_summary": "",
+  "mlflow.charts.skill_performance_summary.view_mode": "",
   "mlflow.charts.tool_error_rate": "",
   "mlflow.charts.tool_error_rate.tool_selector": "",
   "mlflow.charts.tool_error_rate_section": "",
