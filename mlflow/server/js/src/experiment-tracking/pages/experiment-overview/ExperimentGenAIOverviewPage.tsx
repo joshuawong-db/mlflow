@@ -27,6 +27,7 @@ import { LazyTraceCostBreakdownChart } from './components/LazyTraceCostBreakdown
 import { LazyTraceCostOverTimeChart } from './components/LazyTraceCostOverTimeChart';
 import { AssessmentChartsSection } from './components/AssessmentChartsSection';
 import { ToolCallStatistics } from './components/ToolCallStatistics';
+import { SkillCallStatistics } from './components/SkillCallStatistics';
 import { ToolCallChartsSection } from './components/ToolCallChartsSection';
 import { LazyToolUsageChart } from './components/LazyToolUsageChart';
 import { LazyToolLatencyChart } from './components/LazyToolLatencyChart';
@@ -352,6 +353,9 @@ const ExperimentGenAIOverviewPageImpl = () => {
                   {/* Tool call statistics */}
                   <ToolCallStatistics />
 
+                  {/* Skill call statistics — renders only when skill spans exist */}
+                  <SkillCallStatistics />
+
                   {/* Tool performance summary */}
                   <LazyToolPerformanceSummary />
 
@@ -361,11 +365,11 @@ const ExperimentGenAIOverviewPageImpl = () => {
                     <LazyToolLatencyChart />
                   </ChartGrid>
 
-                  {/* Tool error rate charts - dynamically rendered based on available tools */}
-                  <ToolCallChartsSection />
-
                   {/* Skills performance summary */}
                   <LazySkillPerformanceSummary />
+
+                  {/* Tool error rate charts - dynamically rendered based on available tools */}
+                  <ToolCallChartsSection />
                 </>
               ) : (
                 <Typography.Text color="secondary">

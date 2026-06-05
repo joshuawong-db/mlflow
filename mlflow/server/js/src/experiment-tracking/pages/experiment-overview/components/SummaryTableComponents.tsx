@@ -58,12 +58,20 @@ export function SortableHeader<T extends string>({
 }: SortableHeaderProps<T>) {
   const { theme } = useDesignSystemTheme();
 
+  const isActive = sortColumn === column;
+  const ariaSort: 'ascending' | 'descending' | 'none' = !isActive
+    ? 'none'
+    : sortDirection === 'asc'
+      ? 'ascending'
+      : 'descending';
+
   return (
     <div
-      role="button"
+      role="columnheader"
+      aria-sort={ariaSort}
       tabIndex={0}
       onClick={() => onSort(column)}
-      onKeyDown={(e) => e.key === 'Enter' && onSort(column)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSort(column)}
       css={{
         display: 'flex',
         alignItems: 'center',
@@ -77,7 +85,7 @@ export function SortableHeader<T extends string>({
       }}
     >
       {children}
-      {sortColumn === column && (sortDirection === 'asc' ? <SortAscendingIcon /> : <SortDescendingIcon />)}
+      {isActive && (sortDirection === 'asc' ? <SortAscendingIcon /> : <SortDescendingIcon />)}
     </div>
   );
 }

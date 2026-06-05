@@ -463,6 +463,10 @@
     "defaultMessage": "Y-axis:",
     "description": "Label text for y-axis in contour plot comparison in MLflow"
   },
+  "0FVIoA": {
+    "defaultMessage": "Latency",
+    "description": "Latency column header"
+  },
   "0HIfuE": {
     "defaultMessage": "Outputs of the trace, derived from the root span's outputs",
     "description": "Tooltip description for the Response column in the traces table"
@@ -762,6 +766,10 @@
   "1oofcq": {
     "defaultMessage": "Show less",
     "description": "Link that collapses an expanded list when clicked"
+  },
+  "1uXZf9": {
+    "defaultMessage": "Skill ({visible} of {total})",
+    "description": "Skill column header showing visible/total count"
   },
   "1uyr/n": {
     "defaultMessage": "View {count} {count, plural, one {issue} other {issues}}",
@@ -1202,6 +1210,10 @@
   "4HKr3y": {
     "defaultMessage": "Attributes",
     "description": "Header for attribute columns in the evaluation runs table column configuration"
+  },
+  "4HUNTR": {
+    "defaultMessage": "Skills Tracked",
+    "description": "Label for total skills tracked"
   },
   "4HbEVz": {
     "defaultMessage": "You need to select a served model endpoint using dropdown first",
@@ -1779,6 +1791,10 @@
     "defaultMessage": "Create a custom judge function using the {decorator} decorator. All parameters ({inputs}, {outputs}, {expectations}, {trace}) are optional — include only the ones your logic needs. {link}",
     "description": "Step 1 description for defining judge function"
   },
+  "7P2EGF": {
+    "defaultMessage": "Skills are a subset of Tool calls — every skill invocation is also a tool call.",
+    "description": "Tooltip clarifying that skills are a marked subset of tool calls"
+  },
   "7PCvDy": {
     "defaultMessage": "OK",
     "description": "Confirmation button text on the model version stage transition request/approval modal"
@@ -1895,10 +1911,6 @@
     "defaultMessage": "Create prompt",
     "description": "Label for the create prompt button on the registered prompts page"
   },
-  "7xmexV": {
-    "defaultMessage": "Table",
-    "description": "Table view toggle label"
-  },
   "7yW27D": {
     "defaultMessage": "Total Count",
     "description": "Column header for total count"
@@ -2010,6 +2022,10 @@
   "8YmId5": {
     "defaultMessage": "Y axis",
     "description": "Label for Y axis in Contour chart configurator in compare runs chart config modal"
+  },
+  "8ZNOtr": {
+    "defaultMessage": "Calls",
+    "description": "Sort by total invocation count"
   },
   "8bgHT0": {
     "defaultMessage": "Save changes",
@@ -2591,6 +2607,10 @@
     "defaultMessage": "Completed ({count})",
     "description": "Review queue status filter: completed"
   },
+  "BJToPq": {
+    "defaultMessage": "{count} skills selected",
+    "description": "Skill performance summary > filter trigger > N selected"
+  },
   "BMUd0e": {
     "defaultMessage": "Create evaluation datasets in order to iteratively evaluate and improve your app. For example, build a dataset from production traces with negative feedback. {learnMoreLink}",
     "description": "Description for a quickstart guide on MLflow evaluation datasets"
@@ -2803,6 +2823,10 @@
     "defaultMessage": "System Metrics",
     "description": "Experiment tracking > runs charts > cards > RunsChartsDifferenceChartCard > system metrics heading"
   },
+  "CEVPBQ": {
+    "defaultMessage": "No skills match the current filter.",
+    "description": "Empty state for the skill performance list when filter excludes all skills"
+  },
   "CKwhUr": {
     "defaultMessage": "Move to Todo",
     "description": "Review focused view: send a completed/declined trace back to the to-do list"
@@ -2934,6 +2958,10 @@
   "D+UN8o": {
     "defaultMessage": "No metric charts",
     "description": "Experiment page > compare runs > no metric charts"
+  },
+  "D/Dpxw": {
+    "defaultMessage": "Avg latency",
+    "description": "Sort by average latency per call"
   },
   "D0jMS6": {
     "defaultMessage": "Register model",
@@ -3291,10 +3319,6 @@
     "defaultMessage": "Parallel coordinates",
     "description": "Experiment tracking > runs charts > add chart menu > parallel coordinates"
   },
-  "FDaboO": {
-    "defaultMessage": "Avg latency per call",
-    "description": "Chart subtitle for skill latency chart"
-  },
   "FFe+Ug": {
     "defaultMessage": "Type a value",
     "description": "Key-value tag editor modal > Value input placeholder"
@@ -3470,6 +3494,10 @@
   "GDzD7I": {
     "defaultMessage": "Prompt Template",
     "description": "Experiment page > new run modal > prompt examples > prompt template title"
+  },
+  "GHgyto": {
+    "defaultMessage": "Biggest Spending Skill",
+    "description": "Label for the skill with the highest total spend"
   },
   "GJWVBA": {
     "defaultMessage": "Inputs",
@@ -3851,6 +3879,10 @@
     "defaultMessage": "Description update failed",
     "description": "Partial save status message when experiment description update fails"
   },
+  "IVoddV": {
+    "defaultMessage": "Total Skill Spend",
+    "description": "Label for cumulative skill cost"
+  },
   "IWIjkw": {
     "defaultMessage": "Copy link to queue",
     "description": "Review queue header: copy shareable queue link menu item"
@@ -4178,6 +4210,10 @@
   "KObL+y": {
     "defaultMessage": "Endpoints ({count})",
     "description": "Gateway > Endpoints using key drawer > Title"
+  },
+  "KQgnIx": {
+    "defaultMessage": "Default sort is Impact = normalized total spend + normalized total time. Pick one or more skills in the dropdown to filter.",
+    "description": "Caption explaining the default impact sort and filter usage"
   },
   "KRzwkL": {
     "defaultMessage": "Type {itemName} to confirm deletion:",
@@ -4722,6 +4758,10 @@
   "NN0ScV": {
     "defaultMessage": "Comparing {numRuns} Runs from 1 Experiment",
     "description": "Breadcrumb title for compare runs page with single experiment"
+  },
+  "NOpfP3": {
+    "defaultMessage": "All skills ({count})",
+    "description": "Skill filter trigger placeholder showing total skill count"
   },
   "NPlcrl": {
     "defaultMessage": "Clear filters",
@@ -5682,10 +5722,6 @@
   "SMVe/s": {
     "defaultMessage": "Save Changes",
     "description": "Save changes button text"
-  },
-  "SNQMUd": {
-    "defaultMessage": "Skill",
-    "description": "Column header for skill name"
   },
   "SNvZyR": {
     "defaultMessage": "Time",
@@ -6983,6 +7019,10 @@
     "defaultMessage": "No responses or targets logged",
     "description": "Evaluation review > Response section > no values"
   },
+  "YwkP1r": {
+    "defaultMessage": "Skills",
+    "description": "Section header above the skill statistics callouts"
+  },
   "Ywtqwx": {
     "defaultMessage": "Delete queue",
     "description": "Review queue header: delete-queue menu item"
@@ -7607,6 +7647,10 @@
     "defaultMessage": "A tag value is required",
     "description": "Key-value tag editor modal > Value required error message"
   },
+  "bw/ol1": {
+    "defaultMessage": "Skill Invocations",
+    "description": "Label for total skill invocations"
+  },
   "by+x8N": {
     "defaultMessage": "Type",
     "description": "Run page > Overview > Experiment ID section label"
@@ -7634,6 +7678,10 @@
   "c0wdTy": {
     "defaultMessage": "Delete dataset",
     "description": "Overflow-menu item to delete the current V2 evaluation dataset from its detail page"
+  },
+  "c1LE4y": {
+    "defaultMessage": "No matching skills",
+    "description": "Empty state in the skill filter dropdown"
   },
   "c1it6D": {
     "defaultMessage": "Select your theme preference between light and dark.",
@@ -7867,6 +7915,10 @@
     "defaultMessage": "Current password is required",
     "description": "Validation error when the current-password field is empty"
   },
+  "d6gGgd": {
+    "defaultMessage": "Calls",
+    "description": "Calls column header"
+  },
   "d72zLS": {
     "defaultMessage": "Toggle session grouping",
     "description": "Tooltip for the group by session button in the traces table toolbar"
@@ -8014,6 +8066,10 @@
   "dzIz7c": {
     "defaultMessage": "Name can only contain letters, numbers, underscores, hyphens, and dots. Spaces and special characters are not allowed.",
     "description": "Error message for invalid endpoint name format"
+  },
+  "dzeF5E": {
+    "defaultMessage": "Sort by",
+    "description": "Label preceding the sort selector"
   },
   "dzoxyA": {
     "defaultMessage": "Reject pending request",
@@ -8366,6 +8422,10 @@
   "fhaHvd": {
     "defaultMessage": "There was an unrecoverable error while loading the chart. Please try to reconfigure the chart and/or reload the window.",
     "description": "Description for the error message when the MLflow chart fails to load"
+  },
+  "fi1W1O": {
+    "defaultMessage": "Per-skill latency and token cost across all invocations",
+    "description": "Subtitle for the skills performance summary section"
   },
   "fjBt8M": {
     "defaultMessage": "Feedback scores logged to the trace",
@@ -9383,6 +9443,10 @@
     "defaultMessage": "Trace Archival Retention",
     "description": "Label for workspace trace archival retention field"
   },
+  "kFw8RC": {
+    "defaultMessage": "Tools",
+    "description": "Section header above the tool statistics callouts"
+  },
   "kHDQiE": {
     "defaultMessage": "Analyze the '{{ conversation }}' and determine if the agent maintains a polite and professional tone throughout all interactions.{br}Rate as 'consistently_polite', 'mostly_polite', or 'impolite'.",
     "description": "Placeholder text for session level instructions textarea. {br} is a newline."
@@ -10063,6 +10127,10 @@
     "defaultMessage": "Show all parent spans",
     "description": "Checkbox label for a setting that enables showing all parent spans in the trace explorer regardless of filter conditions."
   },
+  "nZT1nB": {
+    "defaultMessage": "Skills",
+    "description": "Skill filter dropdown label"
+  },
   "naivho": {
     "defaultMessage": "of",
     "description": "Connector between list and element type"
@@ -10726,10 +10794,6 @@
   "r5JI+N": {
     "defaultMessage": "Please select metrics",
     "description": "Placeholder text for metrics in parallel coordinates plot in MLflow"
-  },
-  "r5lxzV": {
-    "defaultMessage": "Chart",
-    "description": "Chart view toggle label"
   },
   "r5t1Je": {
     "defaultMessage": "Show execution timeline",
@@ -11551,6 +11615,10 @@
     "defaultMessage": "Artifacts",
     "description": "Run details page > tab selector > artifacts tab"
   },
+  "vQFZ1H": {
+    "defaultMessage": "Avg cost",
+    "description": "Sort by average token cost per call"
+  },
   "vQa9lQ": {
     "defaultMessage": "Experiment type",
     "description": "Label for the experiment type selector in the experiment view header"
@@ -12007,6 +12075,10 @@
     "defaultMessage": "Run on all future traces",
     "description": "Label for toggle to enable automatic evaluation"
   },
+  "xjaeeX": {
+    "defaultMessage": "Total spend",
+    "description": "Sort by cumulative spend"
+  },
   "xmPKKq": {
     "defaultMessage": "Model Version:",
     "description": "Text for model version row header in the main table in the model\n                comparison page"
@@ -12114,10 +12186,6 @@
   "yNjPQQ": {
     "defaultMessage": "Enter current password",
     "description": "Placeholder for the current-password input"
-  },
-  "yOp/HU": {
-    "defaultMessage": "avg latency per invocation · sorted by call count",
-    "description": "Subtitle for the skills performance summary section"
   },
   "yPdr5F": {
     "defaultMessage": "Does app's response directly address the user's input?",
@@ -12227,6 +12295,10 @@
     "defaultMessage": "Create an AI Gateway endpoint in AI Gateway → Endpoints tab to reuse it here",
     "description": "Tooltip suggesting to create an endpoint for reuse"
   },
+  "z6YQIX": {
+    "defaultMessage": "Cost",
+    "description": "Cost column header"
+  },
   "z6qX4/": {
     "defaultMessage": "This endpoint may have been deleted",
     "description": "Tooltip for deleted endpoint"
@@ -12286,6 +12358,10 @@
   "zEXwQL": {
     "defaultMessage": "Error",
     "description": "Label for an assessment with an error"
+  },
+  "zEkGYk": {
+    "defaultMessage": "Impact",
+    "description": "Sort by combined impact score"
   },
   "zIXqYZ": {
     "defaultMessage": "Workspace: {workspace}",
