@@ -17,7 +17,7 @@ import { StatCard } from './OverviewLayoutComponents';
 
 export const SkillCallStatistics: React.FC = () => {
   const { theme } = useDesignSystemTheme();
-  const { skillsData, isLoading, hasData } = useSkillPerformanceSummaryData();
+  const { skillsData, isLoading, hasData, error } = useSkillPerformanceSummaryData();
 
   const totalInvocations = useMemo(() => skillsData.reduce((acc, s) => acc + s.totalCalls, 0), [skillsData]);
   const totalSpend = useMemo(() => skillsData.reduce((acc, s) => acc + s.avgCost * s.totalCalls, 0), [skillsData]);
@@ -27,7 +27,9 @@ export const SkillCallStatistics: React.FC = () => {
   );
 
   // Skills are optional — hide the entire strip when no skill spans exist.
-  if (!isLoading && !hasData) {
+  // Also hide on error: any failed query (cost, especially) would otherwise render
+  // a confidently-wrong "$0.00 Total Skill Spend" from the partial data.
+  if (!isLoading && (error || !hasData)) {
     return null;
   }
 

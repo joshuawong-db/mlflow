@@ -133,7 +133,7 @@ describe('AssessmentSummaryTable', () => {
       renderComponent(defaultProps);
 
       // Click Total Count header to toggle to ascending
-      const countHeader = screen.getByRole('button', { name: /Total Count/i });
+      const countHeader = screen.getByRole('columnheader', { name: /Total Count/i });
       await userEvent.click(countHeader);
 
       // Now should be ascending - beta_scorer first (100 counts)
@@ -147,7 +147,7 @@ describe('AssessmentSummaryTable', () => {
       renderComponent(defaultProps);
 
       // Click Scorer header
-      const scorerHeader = screen.getByRole('button', { name: /^Scorer$/i });
+      const scorerHeader = screen.getByRole('columnheader', { name: /^Scorer$/i });
       await userEvent.click(scorerHeader);
 
       // Should sort by name descending first (gamma > beta > alpha)
@@ -161,7 +161,7 @@ describe('AssessmentSummaryTable', () => {
       renderComponent(defaultProps);
 
       // Click Average Value header
-      const avgHeader = screen.getByRole('button', { name: /Average Value/i });
+      const avgHeader = screen.getByRole('columnheader', { name: /Average Value/i });
       await userEvent.click(avgHeader);
 
       // Should sort by avg value descending
@@ -188,7 +188,7 @@ describe('AssessmentSummaryTable', () => {
       });
 
       // Click Average Value header
-      const avgHeader = screen.getByRole('button', { name: /Average Value/i });
+      const avgHeader = screen.getByRole('columnheader', { name: /Average Value/i });
       await userEvent.click(avgHeader);
 
       // Should sort by avg value descending, undefined treated as lowest
@@ -202,7 +202,7 @@ describe('AssessmentSummaryTable', () => {
       renderComponent(defaultProps);
 
       // Focus and press Enter on Scorer header
-      const scorerHeader = screen.getByRole('button', { name: /^Scorer$/i });
+      const scorerHeader = screen.getByRole('columnheader', { name: /^Scorer$/i });
       scorerHeader.focus();
       await userEvent.keyboard('{Enter}');
 
@@ -217,11 +217,11 @@ describe('AssessmentSummaryTable', () => {
       renderComponent(defaultProps);
 
       // Default is Total Count descending - check for sort icon
-      const countHeader = screen.getByRole('button', { name: /Total Count/i });
+      const countHeader = screen.getByRole('columnheader', { name: /Total Count/i });
       expect(within(countHeader).getByRole('img', { hidden: true })).toBeInTheDocument();
 
       // Scorer header should not have sort icon
-      const scorerHeader = screen.getByRole('button', { name: /^Scorer$/i });
+      const scorerHeader = screen.getByRole('columnheader', { name: /^Scorer$/i });
       expect(within(scorerHeader).queryByRole('img', { hidden: true })).not.toBeInTheDocument();
     });
   });

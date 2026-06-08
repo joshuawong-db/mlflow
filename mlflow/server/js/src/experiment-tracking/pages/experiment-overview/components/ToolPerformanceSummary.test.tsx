@@ -318,7 +318,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Calls header to toggle to ascending
-      const callsHeader = screen.getByRole('button', { name: /Calls/i });
+      const callsHeader = screen.getByRole('columnheader', { name: /Calls/i });
       await userEvent.click(callsHeader);
 
       // Now should be ascending - gamma_tool first (210 calls)
@@ -338,7 +338,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Tool header
-      const toolHeader = screen.getByRole('button', { name: /^Tool$/i });
+      const toolHeader = screen.getByRole('columnheader', { name: /^Tool$/i });
       await userEvent.click(toolHeader);
 
       // Should sort by name descending first (gamma > beta > alpha)
@@ -358,7 +358,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Success header
-      const successHeader = screen.getByRole('button', { name: /Success/i });
+      const successHeader = screen.getByRole('columnheader', { name: /Success/i });
       await userEvent.click(successHeader);
 
       // Should sort by success rate descending
@@ -381,7 +381,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Latency header
-      const latencyHeader = screen.getByRole('button', { name: /Latency \(AVG\)/i });
+      const latencyHeader = screen.getByRole('columnheader', { name: /Latency \(AVG\)/i });
       await userEvent.click(latencyHeader);
 
       // Should sort by latency descending
@@ -402,7 +402,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Focus and press Enter on Tool header
-      const toolHeader = screen.getByRole('button', { name: /^Tool$/i });
+      const toolHeader = screen.getByRole('columnheader', { name: /^Tool$/i });
       toolHeader.focus();
       await userEvent.keyboard('{Enter}');
 
@@ -423,11 +423,11 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Default is Calls descending - check for descending icon
-      const callsHeader = screen.getByRole('button', { name: /Calls/i });
+      const callsHeader = screen.getByRole('columnheader', { name: /Calls/i });
       expect(within(callsHeader).getByRole('img', { hidden: true })).toBeInTheDocument();
 
       // Tool header should not have sort icon
-      const toolHeader = screen.getByRole('button', { name: /^Tool$/i });
+      const toolHeader = screen.getByRole('columnheader', { name: /^Tool$/i });
       expect(within(toolHeader).queryByRole('img', { hidden: true })).not.toBeInTheDocument();
     });
   });
