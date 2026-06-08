@@ -463,10 +463,6 @@
     "defaultMessage": "Y-axis:",
     "description": "Label text for y-axis in contour plot comparison in MLflow"
   },
-  "0FVIoA": {
-    "defaultMessage": "Latency",
-    "description": "Latency column header"
-  },
   "0HIfuE": {
     "defaultMessage": "Outputs of the trace, derived from the root span's outputs",
     "description": "Tooltip description for the Response column in the traces table"
@@ -1723,6 +1719,10 @@
     "defaultMessage": "Off",
     "description": "Runs charts > line chart > ignore outliers > off setting label"
   },
+  "741lsw": {
+    "defaultMessage": "Pricing unavailable — the model used by this skill isn't in the pricing catalog.",
+    "description": "Tooltip explaining the em-dash placeholder in the cost column"
+  },
   "79dD5F": {
     "defaultMessage": "There was an error submitting your note.",
     "description": "Error message text when saving an editable note in MLflow"
@@ -2022,10 +2022,6 @@
   "8YmId5": {
     "defaultMessage": "Y axis",
     "description": "Label for Y axis in Contour chart configurator in compare runs chart config modal"
-  },
-  "8ZNOtr": {
-    "defaultMessage": "Calls",
-    "description": "Sort by total invocation count"
   },
   "8bgHT0": {
     "defaultMessage": "Save changes",
@@ -2959,10 +2955,6 @@
     "defaultMessage": "No metric charts",
     "description": "Experiment page > compare runs > no metric charts"
   },
-  "D/Dpxw": {
-    "defaultMessage": "Avg latency",
-    "description": "Sort by average latency per call"
-  },
   "D0jMS6": {
     "defaultMessage": "Register model",
     "description": "Label for a CTA button for registering a ML model version from a logged model"
@@ -3575,6 +3567,10 @@
     "defaultMessage": "Last modified",
     "description": "Column title for last modified timestamp for a model in the registered model page"
   },
+  "GwH2vC": {
+    "defaultMessage": "Avg cost",
+    "description": "Avg cost aria-label for the range bar"
+  },
   "GyGCX5": {
     "defaultMessage": "Create experiment",
     "description": "Home page experiments empty state CTA"
@@ -4139,6 +4135,10 @@
     "defaultMessage": "Latency",
     "description": "Label for the latency section"
   },
+  "K1XIbm": {
+    "defaultMessage": "Among the highest by avg latency (top quartile)",
+    "description": "Tooltip text on the notable-row InfoIcon for the latency column"
+  },
   "K2IAP7": {
     "defaultMessage": "Success",
     "description": "Column header for success rate"
@@ -4210,10 +4210,6 @@
   "KObL+y": {
     "defaultMessage": "Endpoints ({count})",
     "description": "Gateway > Endpoints using key drawer > Title"
-  },
-  "KQgnIx": {
-    "defaultMessage": "Default sort is Impact = normalized total spend + normalized total time. Pick one or more skills in the dropdown to filter.",
-    "description": "Caption explaining the default impact sort and filter usage"
   },
   "KRzwkL": {
     "defaultMessage": "Type {itemName} to confirm deletion:",
@@ -5867,6 +5863,10 @@
     "defaultMessage": "Go to model",
     "description": "Run page > Header > Register model dropdown > Go to model button label"
   },
+  "T2UxYf": {
+    "defaultMessage": "Avg cost",
+    "description": "Avg cost column header"
+  },
   "T3Ew34": {
     "defaultMessage": "Used by",
     "description": "Used by column header"
@@ -6779,6 +6779,10 @@
     "defaultMessage": "Prompt alias deleted",
     "description": "Webhook event label"
   },
+  "XhG1gZ": {
+    "defaultMessage": "Avg latency",
+    "description": "Avg latency column header"
+  },
   "XiGiE1": {
     "defaultMessage": "Workspace",
     "description": "Permissions table column header for the workspace"
@@ -7247,6 +7251,10 @@
     "defaultMessage": "Users",
     "description": "Admin users tab"
   },
+  "ZyURZj": {
+    "defaultMessage": "Avg latency",
+    "description": "Avg latency aria-label for the range bar"
+  },
   "a+uNeX": {
     "defaultMessage": "Next",
     "description": "Next button to proceed to provider configuration"
@@ -7502,6 +7510,10 @@
   "bCdY2j": {
     "defaultMessage": "Add \"{label}\"",
     "description": "Evaluation review > assessments > add new custom value element"
+  },
+  "bEFbIX": {
+    "defaultMessage": "Among the highest by avg cost (top quartile)",
+    "description": "Tooltip text on the notable-row InfoIcon for the cost column"
   },
   "bGHzui": {
     "defaultMessage": "Custom judge",
@@ -8066,10 +8078,6 @@
   "dzIz7c": {
     "defaultMessage": "Name can only contain letters, numbers, underscores, hyphens, and dots. Spaces and special characters are not allowed.",
     "description": "Error message for invalid endpoint name format"
-  },
-  "dzeF5E": {
-    "defaultMessage": "Sort by",
-    "description": "Label preceding the sort selector"
   },
   "dzoxyA": {
     "defaultMessage": "Reject pending request",
@@ -10127,10 +10135,6 @@
     "defaultMessage": "Show all parent spans",
     "description": "Checkbox label for a setting that enables showing all parent spans in the trace explorer regardless of filter conditions."
   },
-  "nZT1nB": {
-    "defaultMessage": "Skills",
-    "description": "Skill filter dropdown label"
-  },
   "naivho": {
     "defaultMessage": "of",
     "description": "Connector between list and element type"
@@ -10826,6 +10830,10 @@
   "rBPhzU": {
     "defaultMessage": "Detects harmful, offensive, or toxic content in requests and responses.",
     "description": "Safety guardrail type description"
+  },
+  "rBw1O0": {
+    "defaultMessage": "All skills",
+    "description": "Skill filter dropdown label"
   },
   "rBydei": {
     "defaultMessage": "The retrieval-relevance LLM judge determines whether the chunks returned by the retriever are relevant to the input request. Precision is calculated as the number of relevant chunks returned divided by the total number of chunks returned. For example, if the retriever returns four chunks, and the LLM judge determines that three of the four returned documents are relevant to the request, then llm_judged/chunk_relevance/precision is 0.75.",
@@ -11615,10 +11623,6 @@
     "defaultMessage": "Artifacts",
     "description": "Run details page > tab selector > artifacts tab"
   },
-  "vQFZ1H": {
-    "defaultMessage": "Avg cost",
-    "description": "Sort by average token cost per call"
-  },
   "vQa9lQ": {
     "defaultMessage": "Experiment type",
     "description": "Label for the experiment type selector in the experiment view header"
@@ -11811,6 +11815,10 @@
     "defaultMessage": "Get started with AI Gateway",
     "description": "Gateway > Endpoints > Quick start title"
   },
+  "wYZNTo": {
+    "defaultMessage": "Skill metrics require Unity Catalog trace storage.",
+    "description": "Message shown on Skills tab when experiment uses MySQL trace storage"
+  },
   "wZBta0": {
     "defaultMessage": "Tags",
     "description": "Column selector label for the tags column"
@@ -11910,6 +11918,10 @@
   "x0K27S": {
     "defaultMessage": "Nothing to compare!",
     "description": "Header displayed in the metrics and params compare plot when no values are selected"
+  },
+  "x16OTr": {
+    "defaultMessage": "Total spend",
+    "description": "Total spend column header"
   },
   "x1Lbmd": {
     "defaultMessage": "{gpuCount, plural, =0 {} one {# GPU} other {# GPUs}} selected",
@@ -12075,10 +12087,6 @@
     "defaultMessage": "Run on all future traces",
     "description": "Label for toggle to enable automatic evaluation"
   },
-  "xjaeeX": {
-    "defaultMessage": "Total spend",
-    "description": "Sort by cumulative spend"
-  },
   "xmPKKq": {
     "defaultMessage": "Model Version:",
     "description": "Text for model version row header in the main table in the model\n                comparison page"
@@ -12130,6 +12138,10 @@
   "y56Vz9": {
     "defaultMessage": "In progress",
     "description": "Experiment page > traces table > status label > in progress"
+  },
+  "y67gX3": {
+    "defaultMessage": "Skills",
+    "description": "Label for the skills tab in the experiment overview page"
   },
   "y6KMoc": {
     "defaultMessage": "Run the judge on the selected group of {isTraces, select, true {traces} other {sessions}}",
@@ -12295,10 +12307,6 @@
     "defaultMessage": "Create an AI Gateway endpoint in AI Gateway → Endpoints tab to reuse it here",
     "description": "Tooltip suggesting to create an endpoint for reuse"
   },
-  "z6YQIX": {
-    "defaultMessage": "Cost",
-    "description": "Cost column header"
-  },
   "z6qX4/": {
     "defaultMessage": "This endpoint may have been deleted",
     "description": "Tooltip for deleted endpoint"
@@ -12358,10 +12366,6 @@
   "zEXwQL": {
     "defaultMessage": "Error",
     "description": "Label for an assessment with an error"
-  },
-  "zEkGYk": {
-    "defaultMessage": "Impact",
-    "description": "Sort by combined impact score"
   },
   "zIXqYZ": {
     "defaultMessage": "Workspace: {workspace}",
