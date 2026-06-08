@@ -169,7 +169,7 @@ describe('SkillPerformanceSummary', () => {
       });
     });
 
-    it('should render the four column headers (Skill, Calls, Latency, Cost)', async () => {
+    it('should render the five sortable column headers', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -178,10 +178,10 @@ describe('SkillPerformanceSummary', () => {
         // Skill header includes "(visible of total)" — match the prefix only.
         expect(screen.getByText(/^Skill \(\d+ of \d+\)$/)).toBeInTheDocument();
       });
-      // "Calls" appears twice (sort button + column header); ensure at least one column header instance exists.
-      expect(screen.getAllByText('Calls').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('Latency')).toBeInTheDocument();
-      expect(screen.getByText('Cost')).toBeInTheDocument();
+      expect(screen.getByText('Calls')).toBeInTheDocument();
+      expect(screen.getByText('Avg latency')).toBeInTheDocument();
+      expect(screen.getByText('Avg cost')).toBeInTheDocument();
+      expect(screen.getByText('Total spend')).toBeInTheDocument();
     });
 
     it('should render every skill name', async () => {
@@ -196,7 +196,7 @@ describe('SkillPerformanceSummary', () => {
       expect(screen.getByText('gamma-skill')).toBeInTheDocument();
     });
 
-    it('should render formatted latency values (min/avg/max) for each row', async () => {
+    it('should render formatted avg latency and expose min/max via the bar aria-label', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -204,10 +204,11 @@ describe('SkillPerformanceSummary', () => {
       await waitFor(() => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
-      // gamma row: min 200ms, avg 500ms, max 1.20s
-      expect(screen.getByText('200.00ms')).toBeInTheDocument();
+      // Avg is the headline value rendered as text above the bar.
       expect(screen.getByText('500.00ms')).toBeInTheDocument();
-      expect(screen.getByText('1.20s')).toBeInTheDocument();
+      // Min and max no longer render inline — they live on the bar's aria-label
+      // (and inside the tooltip on hover/focus).
+      expect(screen.getByLabelText(/Avg latency: avg 500\.00ms, range 200\.00ms to 1\.20s/)).toBeInTheDocument();
     });
 
     it('should render formatted cost values for each row', async () => {
@@ -222,7 +223,7 @@ describe('SkillPerformanceSummary', () => {
       expect(screen.getAllByText('$0.05').length).toBeGreaterThanOrEqual(1);
     });
 
-    it('should render all five sort options', async () => {
+    it('should expose every header as a sortable columnheader', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -230,23 +231,11 @@ describe('SkillPerformanceSummary', () => {
       await waitFor(() => {
         expect(screen.getByText('Skills Performance')).toBeInTheDocument();
       });
-      expect(screen.getByRole('radio', { name: /Impact/i })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: /^Calls$/i })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: /Avg latency/i })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: /Avg cost/i })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: /Total spend/i })).toBeInTheDocument();
-    });
-
-    it('should render the impact caption', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
-
-      renderComponent();
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Default sort is Impact = normalized total spend \+ normalized total time/),
-        ).toBeInTheDocument();
-      });
+      expect(screen.getByRole('columnheader', { name: /^Skill/ })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Calls' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Avg latency' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Avg cost' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Total spend' })).toBeInTheDocument();
     });
   });
 
@@ -273,7 +262,7 @@ describe('SkillPerformanceSummary', () => {
     const getOrderedSkillNames = () =>
       screen.getAllByText(/^(alpha|beta|gamma)-skill$/).map((el) => el.textContent ?? '');
 
-    it('should default-sort by Impact (alpha first by combined spend + cumulative time)', async () => {
+    it('should default-sort by Avg latency descending', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -281,11 +270,14 @@ describe('SkillPerformanceSummary', () => {
       await waitFor(() => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
-      // alpha leads (spend tied with gamma, but cum_time 150000 > gamma 100000)
-      expect(getOrderedSkillNames()[0]).toBe('alpha-skill');
+      // gamma 500ms > alpha 300ms > beta 100ms
+      const ordered = getOrderedSkillNames();
+      expect(ordered[0]).toBe('gamma-skill');
+      expect(ordered[1]).toBe('alpha-skill');
+      expect(ordered[2]).toBe('beta-skill');
     });
 
-    it('should sort by Calls descending when Calls is selected', async () => {
+    it('should sort by Calls descending when the Calls header is clicked', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -294,7 +286,7 @@ describe('SkillPerformanceSummary', () => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
 
-      await userEvent.click(screen.getByRole('radio', { name: /^Calls$/i }));
+      await userEvent.click(screen.getByRole('columnheader', { name: 'Calls' }));
 
       const ordered = getOrderedSkillNames();
       expect(ordered[0]).toBe('beta-skill'); // 900
@@ -302,7 +294,7 @@ describe('SkillPerformanceSummary', () => {
       expect(ordered[2]).toBe('gamma-skill'); // 200
     });
 
-    it('should sort by Avg latency descending when Avg latency is selected', async () => {
+    it('should sort by Avg cost descending when the Avg cost header is clicked', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -311,24 +303,7 @@ describe('SkillPerformanceSummary', () => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
 
-      await userEvent.click(screen.getByRole('radio', { name: /Avg latency/i }));
-
-      const ordered = getOrderedSkillNames();
-      expect(ordered[0]).toBe('gamma-skill'); // 500ms
-      expect(ordered[1]).toBe('alpha-skill'); // 300ms
-      expect(ordered[2]).toBe('beta-skill'); // 100ms
-    });
-
-    it('should sort by Avg cost descending when Avg cost is selected', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
-
-      renderComponent();
-
-      await waitFor(() => {
-        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
-      });
-
-      await userEvent.click(screen.getByRole('radio', { name: /Avg cost/i }));
+      await userEvent.click(screen.getByRole('columnheader', { name: 'Avg cost' }));
 
       const ordered = getOrderedSkillNames();
       expect(ordered[0]).toBe('gamma-skill'); // $0.05
@@ -336,7 +311,7 @@ describe('SkillPerformanceSummary', () => {
       expect(ordered[2]).toBe('beta-skill'); // $0.01
     });
 
-    it('should sort by Total spend descending when Total spend is selected', async () => {
+    it('should sort by Total spend descending when the Total spend header is clicked', async () => {
       setupHandlers(mockCountData, mockLatencyData, mockCostData);
 
       renderComponent();
@@ -345,15 +320,33 @@ describe('SkillPerformanceSummary', () => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
 
-      await userEvent.click(screen.getByRole('radio', { name: /Total spend/i }));
+      await userEvent.click(screen.getByRole('columnheader', { name: 'Total spend' }));
 
       const ordered = getOrderedSkillNames();
       // alpha = 500*$0.02 = $10; beta = 900*$0.01 = $9; gamma = 200*$0.05 = $10 (tied)
-      // sort is stable enough that the first $10 entry wins; both alpha and gamma should be in top 2
+      // Both alpha and gamma should be in the top 2; beta last.
       const top2 = new Set([ordered[0], ordered[1]]);
       expect(top2.has('alpha-skill')).toBe(true);
       expect(top2.has('gamma-skill')).toBe(true);
       expect(ordered[2]).toBe('beta-skill');
+    });
+
+    it('should flip sort direction when the active column header is clicked again', async () => {
+      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
+      });
+
+      // Default is Avg latency desc; clicking it once flips to asc (beta first).
+      await userEvent.click(screen.getByRole('columnheader', { name: 'Avg latency' }));
+
+      const ordered = getOrderedSkillNames();
+      expect(ordered[0]).toBe('beta-skill'); // 100ms
+      expect(ordered[1]).toBe('alpha-skill'); // 300ms
+      expect(ordered[2]).toBe('gamma-skill'); // 500ms
     });
   });
 });
