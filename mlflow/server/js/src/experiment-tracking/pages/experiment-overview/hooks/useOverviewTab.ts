@@ -6,6 +6,7 @@ export enum OverviewTab {
   Usage = 'usage',
   Quality = 'quality',
   ToolCalls = 'tool-calls',
+  Skills = 'skills',
 }
 
 const DEFAULT_TAB = OverviewTab.Usage;
