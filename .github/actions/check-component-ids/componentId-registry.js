@@ -898,8 +898,6 @@ module.exports = {
   "mlflow.charts.skill_performance_summary": "",
   "mlflow.charts.skill_performance_summary.cost_unavailable": "",
   "mlflow.charts.skill_performance_summary.filter": "",
-  "mlflow.charts.skill_performance_summary.notable_tooltip": "",
-  "mlflow.charts.skill_performance_summary.range_tooltip": "",
   "mlflow.charts.tool_error_rate": "",
   "mlflow.charts.tool_error_rate.tool_selector": "",
   "mlflow.charts.tool_error_rate_section": "",

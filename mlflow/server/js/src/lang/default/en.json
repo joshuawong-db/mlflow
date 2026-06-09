@@ -463,6 +463,10 @@
     "defaultMessage": "Y-axis:",
     "description": "Label text for y-axis in contour plot comparison in MLflow"
   },
+  "0FgHAS": {
+    "defaultMessage": "Among the highest by avg latency (top quartile)",
+    "description": "Tooltip text on the notable-row InfoIcon for the tool latency column"
+  },
   "0HIfuE": {
     "defaultMessage": "Outputs of the trace, derived from the root span's outputs",
     "description": "Tooltip description for the Response column in the traces table"
@@ -9518,6 +9522,10 @@
   "kWUhea": {
     "defaultMessage": "Params",
     "description": "Label for 'params' option group in the compare runs chart configure modal"
+  },
+  "kYfEnq": {
+    "defaultMessage": "Avg latency",
+    "description": "Avg latency aria-label for the tool performance range bar"
   },
   "kZaBMS": {
     "defaultMessage": "trace.status = 'OK'",

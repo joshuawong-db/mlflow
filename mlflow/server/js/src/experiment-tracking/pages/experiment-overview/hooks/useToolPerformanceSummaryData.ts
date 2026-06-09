@@ -12,6 +12,19 @@ import {
 import { useTraceMetricsQuery } from './useTraceMetricsQuery';
 import { useOverviewChartContext } from '../OverviewChartContext';
 
+// PERCENTILE response keys are formatted as `P{value}.0` by the backend
+// (e.g., {"aggregation_type": "PERCENTILE", "percentile_value": 0} → "P0.0").
+// MIN/MAX are unsupported at the span level for LATENCY, so we approximate
+// them via 0th and 100th percentiles.
+const PERCENTILE_MIN_KEY = 'P0.0';
+const PERCENTILE_MAX_KEY = 'P100.0';
+
+const LATENCY_AGGS = [
+  { aggregation_type: AggregationType.AVG },
+  { aggregation_type: AggregationType.PERCENTILE, percentile_value: 0 },
+  { aggregation_type: AggregationType.PERCENTILE, percentile_value: 100 },
+];
+
 export interface ToolPerformanceData {
   /** Tool name (span_name) */
   toolName: string;
@@ -21,6 +34,10 @@ export interface ToolPerformanceData {
   successRate: number;
   /** Average latency in milliseconds */
   avgLatency: number;
+  /** Minimum latency observed (P0.0 — used as min proxy) */
+  minLatency: number;
+  /** Maximum latency observed (P100.0 — used as max proxy) */
+  maxLatency: number;
 }
 
 export interface UseToolPerformanceSummaryDataResult {
@@ -76,7 +93,7 @@ export function useToolPerformanceSummaryData({
     endTimeMs,
     viewType: MetricViewType.SPANS,
     metricName: SpanMetricKey.LATENCY,
-    aggregations: [{ aggregation_type: AggregationType.AVG }],
+    aggregations: LATENCY_AGGS,
     filters: toolFilter,
     dimensions: [SpanDimensionKey.SPAN_NAME],
     enabled,
@@ -85,7 +102,7 @@ export function useToolPerformanceSummaryData({
   // Process data into per-tool performance metrics
   const toolsData = useMemo(() => {
     const toolCountsMap = new Map<string, { total: number; success: number }>();
-    const toolLatencyMap = new Map<string, number>();
+    const toolLatencyMap = new Map<string, { avg: number; min: number; max: number }>();
 
     // Process count data grouped by tool and status
     if (countByToolAndStatusData?.data_points) {
@@ -105,15 +122,16 @@ export function useToolPerformanceSummaryData({
       }
     }
 
-    // Process latency data grouped by tool
+    // Process latency data grouped by tool (avg + P0/P100 as min/max proxies)
     if (latencyByToolData?.data_points) {
       for (const dp of latencyByToolData.data_points) {
         const toolName = dp.dimensions?.[SpanDimensionKey.SPAN_NAME];
-        const avgLatency = dp.values?.[AggregationType.AVG];
-
-        if (toolName && avgLatency !== undefined) {
-          toolLatencyMap.set(toolName, avgLatency);
-        }
+        if (!toolName) continue;
+        toolLatencyMap.set(toolName, {
+          avg: dp.values?.[AggregationType.AVG] ?? 0,
+          min: dp.values?.[PERCENTILE_MIN_KEY] ?? 0,
+          max: dp.values?.[PERCENTILE_MAX_KEY] ?? 0,
+        });
       }
     }
 
@@ -121,11 +139,14 @@ export function useToolPerformanceSummaryData({
     const result: ToolPerformanceData[] = [];
     for (const [toolName, counts] of toolCountsMap.entries()) {
       const successRate = counts.total > 0 ? (counts.success / counts.total) * 100 : 0;
+      const latency = toolLatencyMap.get(toolName);
       result.push({
         toolName,
         totalCalls: counts.total,
         successRate,
-        avgLatency: toolLatencyMap.get(toolName) || 0,
+        avgLatency: latency?.avg ?? 0,
+        minLatency: latency?.min ?? 0,
+        maxLatency: latency?.max ?? 0,
       });
     }
 

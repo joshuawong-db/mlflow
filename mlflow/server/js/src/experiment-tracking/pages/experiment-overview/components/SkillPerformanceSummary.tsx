@@ -7,7 +7,6 @@ import {
   DialogComboboxOptionListCheckboxItem,
   DialogComboboxOptionListSearch,
   DialogComboboxTrigger,
-  InfoIcon,
   SortAscendingIcon,
   SortDescendingIcon,
   Tooltip,
@@ -25,7 +24,7 @@ import {
   OverviewChartHeader,
   OverviewChartLoadingState,
 } from './OverviewChartComponents';
-import { useSortState } from './SummaryTableComponents';
+import { RangeBarMetricCell, percentile, useSortState } from './SummaryTableComponents';
 
 type SortKey = 'skillName' | 'totalCalls' | 'avgLatency' | 'avgCost' | 'totalSpend';
 
@@ -36,128 +35,6 @@ const ROW_GRID = 'minmax(140px, 1.4fr) 70px minmax(0, 2fr) minmax(0, 2fr) minmax
 interface EnrichedRow extends SkillPerformanceData {
   totalSpend: number;
 }
-
-/**
- * Index-based percentile, used to flag top-quartile rows. Cheap and good
- * enough for ~10–100 skills. Returns 0 on empty input.
- */
-function percentile(values: number[], p: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * p)));
-  return sorted[idx];
-}
-
-/**
- * Default per-row cell for the "range-bar" layout: headline avg above a
- * gray-track / colored-range / avg-tick bar. The colored portion is a
- * focusable <button> so the tooltip (min/avg/max) anchors to the data — not
- * the column midpoint — and keyboard users can Tab to it.
- *
- * Top-quartile rows (per metric) get an InfoIcon marker on the headline value.
- */
-const RangeBarMetricCell: React.FC<{
-  avg: number;
-  min: number;
-  max: number;
-  globalMax: number;
-  color: string;
-  format: (v: number) => string;
-  isNotable: boolean;
-  notableReason: string;
-  metricLabel: string;
-}> = ({ avg, min, max, globalMax, color, format, isNotable, notableReason, metricLabel }) => {
-  const { theme } = useDesignSystemTheme();
-  const avgPct = globalMax > 0 ? Math.max(0, Math.min(100, (avg / globalMax) * 100)) : 0;
-  const minPct = globalMax > 0 ? Math.max(0, (min / globalMax) * 100) : 0;
-  const maxPct = globalMax > 0 ? Math.min(100, (max / globalMax) * 100) : 0;
-  const rangeWidth = Math.max(maxPct - minPct, 0.5);
-
-  const ariaLabel = `${metricLabel}: avg ${format(avg)}, range ${format(min)} to ${format(max)}`;
-  const tooltipBody = (
-    <div css={{ fontVariantNumeric: 'tabular-nums' }}>
-      <div>min · {format(min)}</div>
-      <div>
-        <strong>avg · {format(avg)}</strong>
-      </div>
-      <div>max · {format(max)}</div>
-    </div>
-  );
-
-  return (
-    <div css={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-      <div css={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-        {isNotable && (
-          <Tooltip componentId="mlflow.charts.skill_performance_summary.notable_tooltip" content={notableReason}>
-            <span
-              css={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                color: theme.colors.actionLinkDefault,
-                cursor: 'help',
-                fontSize: 16,
-              }}
-            >
-              <InfoIcon aria-label={notableReason} />
-            </span>
-          </Tooltip>
-        )}
-        <Typography.Text css={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{format(avg)}</Typography.Text>
-      </div>
-      <div
-        role="presentation"
-        css={{
-          position: 'relative',
-          width: '100%',
-          height: 8,
-          backgroundColor: theme.colors.backgroundSecondary,
-          borderRadius: theme.borders.borderRadiusMd,
-        }}
-      >
-        <Tooltip componentId="mlflow.charts.skill_performance_summary.range_tooltip" content={tooltipBody}>
-          <button
-            type="button"
-            aria-label={ariaLabel}
-            css={{
-              position: 'absolute',
-              left: `${minPct}%`,
-              width: `${rangeWidth}%`,
-              top: 0,
-              bottom: 0,
-              backgroundColor: color,
-              opacity: 0.45,
-              borderRadius: theme.borders.borderRadiusMd,
-              cursor: 'help',
-              border: 'none',
-              padding: 0,
-              margin: 0,
-              outline: 'none',
-              font: 'inherit',
-              '&:focus-visible': {
-                boxShadow: `0 0 0 2px ${theme.colors.actionDefaultBorderFocus}`,
-                opacity: 0.7,
-              },
-              '&:hover': { opacity: 0.7 },
-            }}
-          />
-        </Tooltip>
-        <div
-          css={{
-            position: 'absolute',
-            left: `${avgPct}%`,
-            top: -3,
-            bottom: -3,
-            width: 3,
-            backgroundColor: color,
-            borderRadius: 1,
-            transform: 'translateX(-1.5px)',
-            pointerEvents: 'none',
-          }}
-        />
-      </div>
-    </div>
-  );
-};
 
 /**
  * Clickable column header with sort indicator. Click (or Enter/Space) toggles
@@ -508,6 +385,7 @@ export const SkillPerformanceSummary: React.FC = () => {
                   defaultMessage: 'Avg latency',
                   description: 'Avg latency aria-label for the range bar',
                 })}
+                componentId="mlflow.charts.skill_performance_summary"
               />
               {isCostUnavailable ? (
                 <UnavailableCostCell tooltip={unavailableTooltip} />
@@ -528,6 +406,7 @@ export const SkillPerformanceSummary: React.FC = () => {
                     defaultMessage: 'Avg cost',
                     description: 'Avg cost aria-label for the range bar',
                   })}
+                  componentId="mlflow.charts.skill_performance_summary"
                 />
               )}
               {isCostUnavailable ? (

@@ -26,13 +26,24 @@ const createCountDataPoint = (toolName: string, status: string, count: number) =
   values: { [AggregationType.COUNT]: count },
 });
 
-// Helper to create a latency data point (grouped by tool name)
-const createLatencyDataPoint = (toolName: string, avgLatency: number) => ({
+// Helper to create a latency data point (grouped by tool name). min/max
+// default to avg so the range bar collapses to the avg position when callers
+// don't care about range visualization.
+const createLatencyDataPoint = (
+  toolName: string,
+  avgLatency: number,
+  minLatency: number = avgLatency,
+  maxLatency: number = avgLatency,
+) => ({
   metric_name: SpanMetricKey.LATENCY,
   dimensions: {
     [SpanDimensionKey.SPAN_NAME]: toolName,
   },
-  values: { [AggregationType.AVG]: avgLatency },
+  values: {
+    [AggregationType.AVG]: avgLatency,
+    'P0.0': minLatency,
+    'P100.0': maxLatency,
+  },
 });
 
 describe('ToolPerformanceSummary', () => {
