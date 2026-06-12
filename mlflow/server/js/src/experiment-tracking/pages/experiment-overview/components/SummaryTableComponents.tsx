@@ -49,6 +49,8 @@ interface SortableHeaderProps<T extends string> {
   children: React.ReactNode;
   /** Whether to center the content */
   centered?: boolean;
+  /** Whether to right-align the content (numeric columns) */
+  rightAligned?: boolean;
 }
 
 /**
@@ -62,6 +64,7 @@ export function SortableHeader<T extends string>({
   onSort,
   children,
   centered,
+  rightAligned,
 }: SortableHeaderProps<T>) {
   const { theme } = useDesignSystemTheme();
 
@@ -71,6 +74,8 @@ export function SortableHeader<T extends string>({
     : sortDirection === 'asc'
       ? 'ascending'
       : 'descending';
+
+  const justifyContent = rightAligned ? 'flex-end' : centered ? 'center' : 'flex-start';
 
   return (
     <div
@@ -84,7 +89,7 @@ export function SortableHeader<T extends string>({
         alignItems: 'center',
         gap: theme.spacing.xs,
         cursor: 'pointer',
-        justifyContent: centered ? 'center' : 'flex-start',
+        justifyContent,
         color: theme.colors.textSecondary,
         fontSize: theme.typography.fontSizeSm,
         fontWeight: 600,
