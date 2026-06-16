@@ -15,7 +15,7 @@ import {
 } from '@databricks/design-system';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { formatCostUSD } from '@databricks/web-shared/model-trace-explorer';
-import { formatCount, formatLatency, useChartColors } from '../utils/chartUtils';
+import { formatCount, useChartColors } from '../utils/chartUtils';
 import type { SkillPerformanceData } from '../hooks/useSkillPerformanceSummaryData';
 import { useSkillPerformanceSummaryData } from '../hooks/useSkillPerformanceSummaryData';
 import {
@@ -26,11 +26,11 @@ import {
 } from './OverviewChartComponents';
 import { RangeBarMetricCell, percentile, useSortState } from './SummaryTableComponents';
 
-type SortKey = 'skillName' | 'totalCalls' | 'avgLatency' | 'avgCost' | 'totalSpend';
+type SortKey = 'skillName' | 'totalCalls' | 'avgCost' | 'totalSpend';
 
 // Last column = Total spend (avgCost × totalCalls) — the cumulative dollars
 // burned by the skill, the most actionable per-skill business value.
-const ROW_GRID = 'minmax(140px, 1.4fr) 70px minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr)';
+const ROW_GRID = 'minmax(140px, 1.4fr) 70px minmax(0, 2fr) minmax(0, 1fr)';
 
 interface EnrichedRow extends SkillPerformanceData {
   totalSpend: number;
@@ -132,7 +132,7 @@ export const SkillPerformanceSummary: React.FC = () => {
   const { theme } = useDesignSystemTheme();
   const intl = useIntl();
   const { getChartColor } = useChartColors();
-  const { sortColumn, sortDirection, handleSort } = useSortState<SortKey>('avgLatency', 'desc');
+  const { sortColumn, sortDirection, handleSort } = useSortState<SortKey>('totalSpend', 'desc');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [skillFilterSearch, setSkillFilterSearch] = useState('');
   const { skillsData, isLoading, error, hasData } = useSkillPerformanceSummaryData();
@@ -160,20 +160,11 @@ export const SkillPerformanceSummary: React.FC = () => {
     });
   }, [enriched, selectedSkills, selectedSkillsSet, sortColumn, sortDirection]);
 
-  const globalMaxLatency = useMemo(() => Math.max(...skillsData.map((s) => s.maxLatency), 1), [skillsData]);
   const globalMaxCost = useMemo(() => Math.max(...skillsData.map((s) => s.maxCost), 0), [skillsData]);
 
   // Top-quartile thresholds — drive the InfoIcon "notable" marker in the
   // range-bar layout. Computed across the full dataset (not the filtered
   // view) so the marker semantics are stable as the user filters.
-  const p75Latency = useMemo(
-    () =>
-      percentile(
-        skillsData.map((s) => s.avgLatency),
-        0.75,
-      ),
-    [skillsData],
-  );
   const p75Cost = useMemo(
     () =>
       percentile(
@@ -218,7 +209,7 @@ export const SkillPerformanceSummary: React.FC = () => {
         }
         subtitle={
           <FormattedMessage
-            defaultMessage="Per-skill latency and token cost across all invocations"
+            defaultMessage="Per-skill token cost across all invocations"
             description="Subtitle for the skills performance summary section"
           />
         }
@@ -315,9 +306,6 @@ export const SkillPerformanceSummary: React.FC = () => {
         <ColHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} column="totalCalls">
           <FormattedMessage defaultMessage="Calls" description="Calls column header" />
         </ColHeader>
-        <ColHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} column="avgLatency">
-          <FormattedMessage defaultMessage="Avg latency" description="Avg latency column header" />
-        </ColHeader>
         <ColHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} column="avgCost">
           <FormattedMessage defaultMessage="Avg cost" description="Avg cost column header" />
         </ColHeader>
@@ -330,7 +318,6 @@ export const SkillPerformanceSummary: React.FC = () => {
         {visible.map((s) => {
           const idx = allSkillNames.indexOf(s.skillName);
           const color = getChartColor(idx === -1 ? 0 : idx);
-          const isLatencyNotable = s.avgLatency >= p75Latency && p75Latency > 0;
           const isCostNotable = s.avgCost >= p75Cost && p75Cost > 0;
           // Heuristic: treat $0 cost as "unavailable" (not zero) whenever the
           // skill made any calls. Skills are LLM-backed by definition, so $0
@@ -369,24 +356,6 @@ export const SkillPerformanceSummary: React.FC = () => {
                 </Typography.Text>
               </div>
               <PlainNumber value={formatCount(s.totalCalls)} />
-              <RangeBarMetricCell
-                avg={s.avgLatency}
-                min={s.minLatency}
-                max={s.maxLatency}
-                globalMax={globalMaxLatency}
-                color={color}
-                format={formatLatency}
-                isNotable={isLatencyNotable}
-                notableReason={intl.formatMessage({
-                  defaultMessage: 'Among the highest by avg latency (top quartile)',
-                  description: 'Tooltip text on the notable-row InfoIcon for the latency column',
-                })}
-                metricLabel={intl.formatMessage({
-                  defaultMessage: 'Avg latency',
-                  description: 'Avg latency aria-label for the range bar',
-                })}
-                componentId="mlflow.charts.skill_performance_summary"
-              />
               {isCostUnavailable ? (
                 <UnavailableCostCell tooltip={unavailableTooltip} />
               ) : (

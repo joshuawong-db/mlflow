@@ -23,12 +23,6 @@ const createCountDataPoint = (skillName: string, status: string, count: number) 
   values: { [AggregationType.COUNT]: count },
 });
 
-const createLatencyDataPoint = (skillName: string, avg: number, min = 0, max = 0) => ({
-  metric_name: SpanMetricKey.LATENCY,
-  dimensions: { [SpanDimensionKey.SKILL_NAME]: skillName },
-  values: { [AggregationType.AVG]: avg, 'P0.0': min, 'P100.0': max },
-});
-
 const createCostDataPoint = (skillName: string, avg: number, min = 0, max = 0) => ({
   metric_name: SpanMetricKey.TOTAL_COST,
   dimensions: { [SpanDimensionKey.SKILL_NAME]: skillName },
@@ -63,7 +57,7 @@ describe('useSkillPerformanceSummaryData', () => {
       );
     };
 
-  const setupHandlers = (countDataPoints: any[], latencyDataPoints: any[], costDataPoints: any[] = []) => {
+  const setupHandlers = (countDataPoints: any[], costDataPoints: any[] = []) => {
     server.use(
       rest.post(getAjaxUrl('ajax-api/3.0/mlflow/traces/metrics'), async (req, res, ctx) => {
         const body = await req.json();
@@ -71,9 +65,6 @@ describe('useSkillPerformanceSummaryData', () => {
         const metricNames: string[] = body.metric_names ?? [];
         if (metricName === SpanMetricKey.SPAN_COUNT || metricNames.includes(SpanMetricKey.SPAN_COUNT)) {
           return res(ctx.json({ data_points: countDataPoints }));
-        }
-        if (metricName === SpanMetricKey.LATENCY || metricNames.includes(SpanMetricKey.LATENCY)) {
-          return res(ctx.json({ data_points: latencyDataPoints }));
         }
         if (metricName === SpanMetricKey.TOTAL_COST || metricNames.includes(SpanMetricKey.TOTAL_COST)) {
           return res(ctx.json({ data_points: costDataPoints }));
@@ -85,7 +76,7 @@ describe('useSkillPerformanceSummaryData', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    setupHandlers([], [], []);
+    setupHandlers([], []);
   });
 
   describe('loading state', () => {
@@ -122,18 +113,13 @@ describe('useSkillPerformanceSummaryData', () => {
       createCountDataPoint('analyze-trace', SpanStatus.OK, 142),
     ];
 
-    const mockLatencyData = [
-      createLatencyDataPoint('review-pr', 18400, 6200, 52100),
-      createLatencyDataPoint('analyze-trace', 4200, 1100, 18300),
-    ];
-
     const mockCostData = [
       createCostDataPoint('review-pr', 0.12, 0.05, 0.4),
       createCostDataPoint('analyze-trace', 0.02, 0.005, 0.08),
     ];
 
     it('should return processed skill data with correct totalCalls', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
 
@@ -145,23 +131,8 @@ describe('useSkillPerformanceSummaryData', () => {
       expect(reviewPr?.totalCalls).toBe(40); // 38 + 2
     });
 
-    it('should return avg, min, and max latency per skill', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
-
-      const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      const reviewPr = result.current.skillsData.find((s) => s.skillName === 'review-pr');
-      expect(reviewPr?.avgLatency).toBe(18400);
-      expect(reviewPr?.minLatency).toBe(6200);
-      expect(reviewPr?.maxLatency).toBe(52100);
-    });
-
     it('should return avg, min, and max cost per skill', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
 
@@ -175,8 +146,8 @@ describe('useSkillPerformanceSummaryData', () => {
       expect(reviewPr?.maxCost).toBeCloseTo(0.4);
     });
 
-    it('should include skills with count data even when latency and cost are missing', async () => {
-      setupHandlers([createCountDataPoint('no-data-skill', SpanStatus.OK, 10)], [], []);
+    it('should include skills with count data even when cost is missing', async () => {
+      setupHandlers([createCountDataPoint('no-data-skill', SpanStatus.OK, 10)], []);
 
       const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
 
@@ -186,16 +157,13 @@ describe('useSkillPerformanceSummaryData', () => {
 
       const skill = result.current.skillsData.find((s) => s.skillName === 'no-data-skill');
       expect(skill).toBeDefined();
-      expect(skill?.avgLatency).toBe(0);
-      expect(skill?.minLatency).toBe(0);
-      expect(skill?.maxLatency).toBe(0);
       expect(skill?.avgCost).toBe(0);
       expect(skill?.minCost).toBe(0);
       expect(skill?.maxCost).toBe(0);
     });
 
     it('should sort skills by total calls descending', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
 
@@ -208,7 +176,7 @@ describe('useSkillPerformanceSummaryData', () => {
     });
 
     it('should set hasData=true when skills are returned', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
 

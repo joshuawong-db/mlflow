@@ -25,12 +25,6 @@ const createCountDataPoint = (skillName: string, status: string, count: number) 
   values: { [AggregationType.COUNT]: count },
 });
 
-const createLatencyDataPoint = (skillName: string, avg: number, min = 0, max = 0) => ({
-  metric_name: SpanMetricKey.LATENCY,
-  dimensions: { [SpanDimensionKey.SKILL_NAME]: skillName },
-  values: { [AggregationType.AVG]: avg, 'P0.0': min, 'P100.0': max },
-});
-
 const createCostDataPoint = (skillName: string, avg: number, min = 0, max = 0) => ({
   metric_name: SpanMetricKey.TOTAL_COST,
   dimensions: { [SpanDimensionKey.SKILL_NAME]: skillName },
@@ -69,7 +63,7 @@ describe('SkillPerformanceSummary', () => {
     );
   };
 
-  const setupHandlers = (countDataPoints: any[], latencyDataPoints: any[], costDataPoints: any[] = []) => {
+  const setupHandlers = (countDataPoints: any[], costDataPoints: any[] = []) => {
     server.use(
       rest.post(getAjaxUrl('ajax-api/3.0/mlflow/traces/metrics'), async (req, res, ctx) => {
         const body = await req.json();
@@ -77,9 +71,6 @@ describe('SkillPerformanceSummary', () => {
         const metricNames: string[] = body.metric_names ?? [];
         if (metricName === SpanMetricKey.SPAN_COUNT || metricNames.includes(SpanMetricKey.SPAN_COUNT)) {
           return res(ctx.json({ data_points: countDataPoints }));
-        }
-        if (metricName === SpanMetricKey.LATENCY || metricNames.includes(SpanMetricKey.LATENCY)) {
-          return res(ctx.json({ data_points: latencyDataPoints }));
         }
         if (metricName === SpanMetricKey.TOTAL_COST || metricNames.includes(SpanMetricKey.TOTAL_COST)) {
           return res(ctx.json({ data_points: costDataPoints }));
@@ -91,7 +82,7 @@ describe('SkillPerformanceSummary', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    setupHandlers([], [], []);
+    setupHandlers([], []);
   });
 
   describe('loading state', () => {
@@ -137,20 +128,10 @@ describe('SkillPerformanceSummary', () => {
   });
 
   describe('with data', () => {
-    // alpha:  500 calls × 300ms avg ×  $0.02 avg → impact term spend=10, time=150000
-    // beta:   900 calls × 100ms avg ×  $0.01 avg → impact term spend=9,  time=90000
-    // gamma:  200 calls × 500ms avg ×  $0.05 avg → impact term spend=10, time=100000
-    // After normalisation: alpha and gamma tie on spend, alpha leads on time → alpha first.
     const mockCountData = [
       createCountDataPoint('alpha-skill', SpanStatus.OK, 500),
       createCountDataPoint('beta-skill', SpanStatus.OK, 900),
       createCountDataPoint('gamma-skill', SpanStatus.OK, 200),
-    ];
-
-    const mockLatencyData = [
-      createLatencyDataPoint('alpha-skill', 300, 100, 800),
-      createLatencyDataPoint('beta-skill', 100, 50, 250),
-      createLatencyDataPoint('gamma-skill', 500, 200, 1200),
     ];
 
     const mockCostData = [
@@ -160,7 +141,7 @@ describe('SkillPerformanceSummary', () => {
     ];
 
     it('should render the section title', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -169,8 +150,8 @@ describe('SkillPerformanceSummary', () => {
       });
     });
 
-    it('should render the five sortable column headers', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+    it('should render the four sortable column headers', async () => {
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -179,13 +160,12 @@ describe('SkillPerformanceSummary', () => {
         expect(screen.getByText(/^Skill \(\d+ of \d+\)$/)).toBeInTheDocument();
       });
       expect(screen.getByText('Calls')).toBeInTheDocument();
-      expect(screen.getByText('Avg latency')).toBeInTheDocument();
       expect(screen.getByText('Avg cost')).toBeInTheDocument();
       expect(screen.getByText('Total spend')).toBeInTheDocument();
     });
 
     it('should render every skill name', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -196,23 +176,8 @@ describe('SkillPerformanceSummary', () => {
       expect(screen.getByText('gamma-skill')).toBeInTheDocument();
     });
 
-    it('should render formatted avg latency and expose min/max via the bar aria-label', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
-
-      renderComponent();
-
-      await waitFor(() => {
-        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
-      });
-      // Avg is the headline value rendered as text above the bar.
-      expect(screen.getByText('500.00ms')).toBeInTheDocument();
-      // Min and max no longer render inline — they live on the bar's aria-label
-      // (and inside the tooltip on hover/focus).
-      expect(screen.getByLabelText(/Avg latency: avg 500\.00ms, range 200\.00ms to 1\.20s/)).toBeInTheDocument();
-    });
-
     it('should render formatted cost values for each row', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -224,7 +189,7 @@ describe('SkillPerformanceSummary', () => {
     });
 
     it('should expose every header as a sortable columnheader', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -233,25 +198,19 @@ describe('SkillPerformanceSummary', () => {
       });
       expect(screen.getByRole('columnheader', { name: /^Skill/ })).toBeInTheDocument();
       expect(screen.getByRole('columnheader', { name: 'Calls' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'Avg latency' })).toBeInTheDocument();
       expect(screen.getByRole('columnheader', { name: 'Avg cost' })).toBeInTheDocument();
       expect(screen.getByRole('columnheader', { name: 'Total spend' })).toBeInTheDocument();
     });
   });
 
   describe('sorting', () => {
-    // alpha: 500 calls, 300ms avg, $0.02 avg → spend=10,  cum_time=150000
-    // beta:  900 calls, 100ms avg, $0.01 avg → spend=9,   cum_time=90000
-    // gamma: 200 calls, 500ms avg, $0.05 avg → spend=10,  cum_time=100000
+    // alpha: 500 calls, $0.02 avg → spend=$10
+    // beta:  900 calls, $0.01 avg → spend=$9
+    // gamma: 200 calls, $0.05 avg → spend=$10
     const mockCountData = [
       createCountDataPoint('alpha-skill', SpanStatus.OK, 500),
       createCountDataPoint('beta-skill', SpanStatus.OK, 900),
       createCountDataPoint('gamma-skill', SpanStatus.OK, 200),
-    ];
-    const mockLatencyData = [
-      createLatencyDataPoint('alpha-skill', 300),
-      createLatencyDataPoint('beta-skill', 100),
-      createLatencyDataPoint('gamma-skill', 500),
     ];
     const mockCostData = [
       createCostDataPoint('alpha-skill', 0.02),
@@ -262,23 +221,25 @@ describe('SkillPerformanceSummary', () => {
     const getOrderedSkillNames = () =>
       screen.getAllByText(/^(alpha|beta|gamma)-skill$/).map((el) => el.textContent ?? '');
 
-    it('should default-sort by Avg latency descending', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+    it('should default-sort by Total spend descending', async () => {
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
       await waitFor(() => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
-      // gamma 500ms > alpha 300ms > beta 100ms
+      // alpha = 500*$0.02 = $10; beta = 900*$0.01 = $9; gamma = 200*$0.05 = $10 (tied)
+      // alpha and gamma lead (tied at $10); beta is last.
       const ordered = getOrderedSkillNames();
-      expect(ordered[0]).toBe('gamma-skill');
-      expect(ordered[1]).toBe('alpha-skill');
+      const top2 = new Set([ordered[0], ordered[1]]);
+      expect(top2.has('alpha-skill')).toBe(true);
+      expect(top2.has('gamma-skill')).toBe(true);
       expect(ordered[2]).toBe('beta-skill');
     });
 
     it('should sort by Calls descending when the Calls header is clicked', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -295,7 +256,7 @@ describe('SkillPerformanceSummary', () => {
     });
 
     it('should sort by Avg cost descending when the Avg cost header is clicked', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -311,8 +272,8 @@ describe('SkillPerformanceSummary', () => {
       expect(ordered[2]).toBe('beta-skill'); // $0.01
     });
 
-    it('should sort by Total spend descending when the Total spend header is clicked', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
+    it('should flip sort direction when the active column header is clicked again', async () => {
+      setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
 
@@ -320,33 +281,14 @@ describe('SkillPerformanceSummary', () => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
 
+      // Default is Total spend desc; clicking it once flips to asc (beta first at $9).
       await userEvent.click(screen.getByRole('columnheader', { name: 'Total spend' }));
 
       const ordered = getOrderedSkillNames();
-      // alpha = 500*$0.02 = $10; beta = 900*$0.01 = $9; gamma = 200*$0.05 = $10 (tied)
-      // Both alpha and gamma should be in the top 2; beta last.
-      const top2 = new Set([ordered[0], ordered[1]]);
-      expect(top2.has('alpha-skill')).toBe(true);
-      expect(top2.has('gamma-skill')).toBe(true);
-      expect(ordered[2]).toBe('beta-skill');
-    });
-
-    it('should flip sort direction when the active column header is clicked again', async () => {
-      setupHandlers(mockCountData, mockLatencyData, mockCostData);
-
-      renderComponent();
-
-      await waitFor(() => {
-        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
-      });
-
-      // Default is Avg latency desc; clicking it once flips to asc (beta first).
-      await userEvent.click(screen.getByRole('columnheader', { name: 'Avg latency' }));
-
-      const ordered = getOrderedSkillNames();
-      expect(ordered[0]).toBe('beta-skill'); // 100ms
-      expect(ordered[1]).toBe('alpha-skill'); // 300ms
-      expect(ordered[2]).toBe('gamma-skill'); // 500ms
+      expect(ordered[0]).toBe('beta-skill'); // $9 (lowest)
+      const rest = new Set([ordered[1], ordered[2]]);
+      expect(rest.has('alpha-skill')).toBe(true);
+      expect(rest.has('gamma-skill')).toBe(true);
     });
   });
 });
