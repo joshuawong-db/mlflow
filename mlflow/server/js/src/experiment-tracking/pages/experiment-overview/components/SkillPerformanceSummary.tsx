@@ -132,7 +132,7 @@ export const SkillPerformanceSummary: React.FC = () => {
   const { theme } = useDesignSystemTheme();
   const intl = useIntl();
   const { getChartColor } = useChartColors();
-  const { sortColumn, sortDirection, handleSort } = useSortState<SortKey>('totalSpend', 'desc');
+  const { sortColumn, sortDirection, handleSort } = useSortState<SortKey>('totalCalls', 'desc');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [skillFilterSearch, setSkillFilterSearch] = useState('');
   const { skillsData, isLoading, error, hasData } = useSkillPerformanceSummaryData();

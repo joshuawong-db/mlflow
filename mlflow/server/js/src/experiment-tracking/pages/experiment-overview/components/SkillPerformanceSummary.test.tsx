@@ -221,7 +221,7 @@ describe('SkillPerformanceSummary', () => {
     const getOrderedSkillNames = () =>
       screen.getAllByText(/^(alpha|beta|gamma)-skill$/).map((el) => el.textContent ?? '');
 
-    it('should default-sort by Total spend descending', async () => {
+    it('should default-sort by Calls descending', async () => {
       setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
@@ -229,6 +229,24 @@ describe('SkillPerformanceSummary', () => {
       await waitFor(() => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
+      // beta 900 > alpha 500 > gamma 200
+      const ordered = getOrderedSkillNames();
+      expect(ordered[0]).toBe('beta-skill');
+      expect(ordered[1]).toBe('alpha-skill');
+      expect(ordered[2]).toBe('gamma-skill');
+    });
+
+    it('should sort by Total spend descending when the Total spend header is clicked', async () => {
+      setupHandlers(mockCountData, mockCostData);
+
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
+      });
+
+      await userEvent.click(screen.getByRole('columnheader', { name: 'Total spend' }));
+
       // alpha = 500*$0.02 = $10; beta = 900*$0.01 = $9; gamma = 200*$0.05 = $10 (tied)
       // alpha and gamma lead (tied at $10); beta is last.
       const ordered = getOrderedSkillNames();
@@ -236,23 +254,6 @@ describe('SkillPerformanceSummary', () => {
       expect(top2.has('alpha-skill')).toBe(true);
       expect(top2.has('gamma-skill')).toBe(true);
       expect(ordered[2]).toBe('beta-skill');
-    });
-
-    it('should sort by Calls descending when the Calls header is clicked', async () => {
-      setupHandlers(mockCountData, mockCostData);
-
-      renderComponent();
-
-      await waitFor(() => {
-        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
-      });
-
-      await userEvent.click(screen.getByRole('columnheader', { name: 'Calls' }));
-
-      const ordered = getOrderedSkillNames();
-      expect(ordered[0]).toBe('beta-skill'); // 900
-      expect(ordered[1]).toBe('alpha-skill'); // 500
-      expect(ordered[2]).toBe('gamma-skill'); // 200
     });
 
     it('should sort by Avg cost descending when the Avg cost header is clicked', async () => {
@@ -281,14 +282,13 @@ describe('SkillPerformanceSummary', () => {
         expect(screen.getByText('alpha-skill')).toBeInTheDocument();
       });
 
-      // Default is Total spend desc; clicking it once flips to asc (beta first at $9).
-      await userEvent.click(screen.getByRole('columnheader', { name: 'Total spend' }));
+      // Default is Calls desc; clicking it once flips to asc (gamma first at 200).
+      await userEvent.click(screen.getByRole('columnheader', { name: 'Calls' }));
 
       const ordered = getOrderedSkillNames();
-      expect(ordered[0]).toBe('beta-skill'); // $9 (lowest)
-      const rest = new Set([ordered[1], ordered[2]]);
-      expect(rest.has('alpha-skill')).toBe(true);
-      expect(rest.has('gamma-skill')).toBe(true);
+      expect(ordered[0]).toBe('gamma-skill'); // 200
+      expect(ordered[1]).toBe('alpha-skill'); // 500
+      expect(ordered[2]).toBe('beta-skill'); // 900
     });
   });
 });
