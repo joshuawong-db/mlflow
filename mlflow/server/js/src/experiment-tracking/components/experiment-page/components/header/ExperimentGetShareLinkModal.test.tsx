@@ -137,7 +137,7 @@ describe('ExperimentGetShareLinkModal', () => {
       // Click the copy button and assert that the URL was copied to the clipboard
       await userEvent.click(screen.getByTestId('share-link-copy-button'));
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        expect.stringMatching(/\/experiments\/experiment-1\?viewStateShareKey=/),
+        expect.stringMatching(/\/experiments\/experiment-1\/runs\?viewStateShareKey=/),
       );
 
       // No backend tag should be written for a self-contained link

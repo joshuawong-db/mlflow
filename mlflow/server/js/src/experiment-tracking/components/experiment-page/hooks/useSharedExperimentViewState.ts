@@ -3,8 +3,9 @@ import { useIntl } from 'react-intl';
 import { EXPERIMENT_PAGE_QUERY_PARAM_KEYS, useUpdateExperimentPageSearchFacets } from './useExperimentPageSearchFacets';
 import { pick } from 'lodash';
 import type { ExperimentPageUIState } from '../models/ExperimentPageUIState';
-import { EXPERIMENT_PAGE_UI_STATE_FIELDS } from '../models/ExperimentPageUIState';
+import { EXPERIMENT_PAGE_UI_STATE_FIELDS, createExperimentPageUIState } from '../models/ExperimentPageUIState';
 import type { ExperimentPageSearchFacetsState } from '../models/ExperimentPageSearchFacetsState';
+import { createExperimentPageSearchFacetsState } from '../models/ExperimentPageSearchFacetsState';
 import type { ExperimentEntity } from '../../../types';
 import type { KeyValueEntity } from '../../../../common/types';
 import { useNavigate, useSearchParams } from '../../../../common/utils/RoutingUtils';
@@ -59,14 +60,18 @@ export const useSharedExperimentViewState = (
     }
 
     const applyParsedState = (parsedSharedViewState: unknown) => {
-      // First, extract search facets part of the shared view state
-      const sharedSearchFacetsState = pick(
-        parsedSharedViewState,
-        EXPERIMENT_PAGE_QUERY_PARAM_KEYS,
-      ) as ExperimentPageSearchFacetsState;
+      // Merge onto defaults so that fields intentionally omitted from a shared link
+      // (e.g. per-run pins/visibility) are restored to valid defaults rather than
+      // left undefined, which would break consumers that expect arrays/objects.
+      const sharedSearchFacetsState = {
+        ...createExperimentPageSearchFacetsState(),
+        ...pick(parsedSharedViewState, EXPERIMENT_PAGE_QUERY_PARAM_KEYS),
+      } as ExperimentPageSearchFacetsState;
 
-      // Then, extract UI state part of the shared view state
-      const sharedUiState = pick(parsedSharedViewState, EXPERIMENT_PAGE_UI_STATE_FIELDS) as ExperimentPageUIState;
+      const sharedUiState = {
+        ...createExperimentPageUIState(),
+        ...pick(parsedSharedViewState, EXPERIMENT_PAGE_UI_STATE_FIELDS),
+      } as ExperimentPageUIState;
 
       setSharedSearchFacetsState(sharedSearchFacetsState);
       setSharedUiState(sharedUiState);

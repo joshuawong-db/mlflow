@@ -10,7 +10,7 @@ import type { ExperimentPageUIState } from '../../models/ExperimentPageUIState';
 import { createExperimentPageUIState } from '../../models/ExperimentPageUIState';
 import { textCompressDeflate } from '../../../../../common/utils/StringUtils';
 import Utils from '../../../../../common/utils/Utils';
-import { EXPERIMENT_PAGE_VIEW_STATE_SHARE_URL_PARAM_KEY } from '../../../../constants';
+import { EXPERIMENT_PAGE_VIEW_STATE_SHARE_URL_PARAM_KEY, ExperimentPageTabName } from '../../../../constants';
 import { shouldUseCompressedExperimentViewSharedState } from '../../../../../common/utils/FeatureUtils';
 import {
   EXPERIMENT_PAGE_VIEW_MODE_QUERY_PARAM_KEY,
@@ -61,8 +61,9 @@ const serializePersistedState = async (state: ShareableViewState) => {
 };
 
 const getShareableUrl = (experimentId: string, shareState: string, viewMode?: ExperimentViewRunsCompareMode) => {
-  // As a start, get the route
-  const route = Routes.getExperimentPageRoute(experimentId);
+  // The shared view state is consumed by the runs view, so the link must land on
+  // the runs tab; the bare experiment route redirects to Overview and drops the param.
+  const route = Routes.getExperimentPageTabRoute(experimentId, ExperimentPageTabName.Runs);
 
   // Begin building the query params
   const queryParams = new URLSearchParams();
@@ -96,60 +97,58 @@ export const ExperimentGetShareLinkModal = ({
 }: GetShareLinkModalProps) => {
   const [sharedStateUrl, setSharedStateUrl] = useState<string>('');
   const [linkInProgress, setLinkInProgress] = useState(true);
-  const [generatedState, setGeneratedState] = useState<ShareableViewState | null>(null);
   const [viewMode] = useExperimentPageViewMode();
 
   const persistKey = useMemo(() => JSON.stringify([...experimentIds].sort()), [experimentIds]);
 
-  // The modern tabbed experiment page doesn't plumb the live search facets / UI state
-  // into the header, so fall back to the snapshot persisted in local storage.
-  const stateToSerialize = useMemo<ShareableViewState>(() => {
-    if (searchFacetsState && uiState) {
-      return { ...searchFacetsState, ...uiState };
-    }
-    const persistedViewState = loadExperimentViewState(persistKey);
-    return {
-      ...createExperimentPageSearchFacetsState(),
-      ...createExperimentPageUIState(),
-      ...persistedViewState,
-    };
-  }, [searchFacetsState, uiState, persistKey]);
-
-  const createShareableUrl = useCallback(
-    async (state: ShareableViewState) => {
-      // Multiple experiments don't map to a single self-contained route; copy the
-      // current URL (its search facets already round-trip through query params).
-      if (experimentIds.length !== 1) {
-        setLinkInProgress(false);
-        setGeneratedState(state);
-        setSharedStateUrl(window.location.href);
-        return;
-      }
-      setLinkInProgress(true);
-      const [experimentId] = experimentIds;
-      try {
-        const data = await serializePersistedState(state);
-        const url = getShareableUrl(experimentId, data, viewMode);
-
-        setGeneratedState(state);
-        // If the encoded view overflows the URL budget, fall back to the plain URL
-        // (search facets still ride along; only the heavier UI state is dropped).
-        setSharedStateUrl(url.length > MAX_SHARE_URL_LENGTH ? window.location.href : url);
-        setLinkInProgress(false);
-      } catch (e) {
-        Utils.logErrorAndNotifyUser('Failed to create shareable link for experiment');
-        throw e;
-      }
-    },
-    [experimentIds, viewMode],
+  // When the live search facets / UI state are passed in (classic experiment view),
+  // serialize those directly. The modern tabbed page doesn't plumb them into the
+  // header, so read the snapshot persisted in local storage instead.
+  const liveState = useMemo<ShareableViewState | null>(
+    () => (searchFacetsState && uiState ? { ...searchFacetsState, ...uiState } : null),
+    [searchFacetsState, uiState],
   );
 
-  useEffect(() => {
-    if (!visible || generatedState === stateToSerialize) {
+  const createShareableUrl = useCallback(async () => {
+    // Read the current view at generation time so changes made after the modal
+    // mounted (e.g. resizing a column, then clicking Share) are reflected.
+    const state =
+      liveState ??
+      ({
+        ...createExperimentPageSearchFacetsState(),
+        ...createExperimentPageUIState(),
+        ...loadExperimentViewState(persistKey),
+      } as ShareableViewState);
+
+    // Multiple experiments don't map to a single self-contained route; copy the
+    // current URL (its search facets already round-trip through query params).
+    if (experimentIds.length !== 1) {
+      setSharedStateUrl(window.location.href);
+      setLinkInProgress(false);
       return;
     }
-    createShareableUrl(stateToSerialize);
-  }, [visible, createShareableUrl, generatedState, stateToSerialize]);
+    setLinkInProgress(true);
+    const [experimentId] = experimentIds;
+    try {
+      const data = await serializePersistedState(state);
+      const url = getShareableUrl(experimentId, data, viewMode);
+
+      // If the encoded view overflows the URL budget, fall back to the plain URL
+      // (search facets still ride along; only the heavier UI state is dropped).
+      setSharedStateUrl(url.length > MAX_SHARE_URL_LENGTH ? window.location.href : url);
+      setLinkInProgress(false);
+    } catch (e) {
+      Utils.logErrorAndNotifyUser('Failed to create shareable link for experiment');
+      throw e;
+    }
+  }, [liveState, persistKey, experimentIds, viewMode]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    createShareableUrl();
+  }, [visible, createShareableUrl]);
 
   return (
     <Modal
