@@ -24,6 +24,15 @@ const deserializePersistedState = async (state: string) => {
 };
 
 /**
+ * Self-contained shared links embed the (optionally compressed) view-state blob
+ * directly in the URL param. Legacy links instead store a hash that points to an
+ * experiment tag. A compressed blob carries the deflate header; an uncompressed
+ * blob is a JSON object literal — both are distinguishable from a bare hash.
+ */
+const isSelfContainedShareState = (value: string) =>
+  isTextCompressedDeflate(value) || value.trimStart().startsWith('{');
+
+/**
  * Hook that handles loading shared view state from URL and updating the search facets/UI state accordingly
  */
 export const useSharedExperimentViewState = (
@@ -45,7 +54,59 @@ export const useSharedExperimentViewState = (
   const [sharedStateErrorMessage, setSharedStateErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!viewStateShareKey || !experiment) {
+    if (!viewStateShareKey) {
+      return;
+    }
+
+    const applyParsedState = (parsedSharedViewState: unknown) => {
+      // First, extract search facets part of the shared view state
+      const sharedSearchFacetsState = pick(
+        parsedSharedViewState,
+        EXPERIMENT_PAGE_QUERY_PARAM_KEYS,
+      ) as ExperimentPageSearchFacetsState;
+
+      // Then, extract UI state part of the shared view state
+      const sharedUiState = pick(parsedSharedViewState, EXPERIMENT_PAGE_UI_STATE_FIELDS) as ExperimentPageUIState;
+
+      setSharedSearchFacetsState(sharedSearchFacetsState);
+      setSharedUiState(sharedUiState);
+      setSharedStateError(null);
+      setSharedStateErrorMessage(null);
+    };
+
+    const reportInvalidShareState = () => {
+      setSharedSearchFacetsState(null);
+      setSharedUiState(null);
+      setSharedStateError(`Error loading shared view state: share key is invalid`);
+      setSharedStateErrorMessage(
+        intl.formatMessage({
+          defaultMessage: `Error loading shared view state: share key is invalid`,
+          description: 'Experiment page > share viewstate > error > share key is invalid',
+        }),
+      );
+    };
+
+    // Self-contained shared link: the view state is embedded in the URL param, so it
+    // can be applied directly without a backend tag lookup.
+    if (isSelfContainedShareState(viewStateShareKey)) {
+      const parseSelfContainedState = async () => {
+        try {
+          const parsedSharedViewState = await deserializePersistedState(viewStateShareKey);
+          if (!parsedSharedViewState || typeof parsedSharedViewState !== 'object') {
+            reportInvalidShareState();
+            return;
+          }
+          applyParsedState(parsedSharedViewState);
+        } catch (e) {
+          reportInvalidShareState();
+        }
+      };
+      parseSelfContainedState();
+      return;
+    }
+
+    // Legacy shared link: the param is a hash pointing to an experiment tag.
+    if (!experiment) {
       return;
     }
 
@@ -57,29 +118,9 @@ export const useSharedExperimentViewState = (
     const tryParseSharedStateFromTag = async (shareViewTag: KeyValueEntity) => {
       try {
         const parsedSharedViewState = await deserializePersistedState(shareViewTag.value);
-        // First, extract search facets part of the shared view state
-        const sharedSearchFacetsState = pick(
-          parsedSharedViewState,
-          EXPERIMENT_PAGE_QUERY_PARAM_KEYS,
-        ) as ExperimentPageSearchFacetsState;
-
-        // Then, extract UI state part of the shared view state
-        const sharedUiState = pick(parsedSharedViewState, EXPERIMENT_PAGE_UI_STATE_FIELDS) as ExperimentPageUIState;
-
-        setSharedSearchFacetsState(sharedSearchFacetsState);
-        setSharedUiState(sharedUiState);
-        setSharedStateError(null);
-        setSharedStateErrorMessage(null);
+        applyParsedState(parsedSharedViewState);
       } catch (e) {
-        setSharedSearchFacetsState(null);
-        setSharedUiState(null);
-        setSharedStateError(`Error loading shared view state: share key is invalid`);
-        setSharedStateErrorMessage(
-          intl.formatMessage({
-            defaultMessage: `Error loading shared view state: share key is invalid`,
-            description: 'Experiment page > share viewstate > error > share key is invalid',
-          }),
-        );
+        reportInvalidShareState();
       }
     };
 

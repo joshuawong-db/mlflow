@@ -1,32 +1,30 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
 import { GenericSkeleton, Input, Modal } from '@databricks/design-system';
-import { useDispatch } from 'react-redux';
-import type { ThunkDispatch } from '../../../../../redux-types';
-import { setExperimentTagApi } from '../../../../actions';
+import { omit } from 'lodash';
 import Routes from '../../../../routes';
 import { CopyButton } from '../../../../../shared/building_blocks/CopyButton';
 import type { ExperimentPageSearchFacetsState } from '../../models/ExperimentPageSearchFacetsState';
+import { createExperimentPageSearchFacetsState } from '../../models/ExperimentPageSearchFacetsState';
 import type { ExperimentPageUIState } from '../../models/ExperimentPageUIState';
-import { getStringSHA256, textCompressDeflate } from '../../../../../common/utils/StringUtils';
+import { createExperimentPageUIState } from '../../models/ExperimentPageUIState';
+import { textCompressDeflate } from '../../../../../common/utils/StringUtils';
 import Utils from '../../../../../common/utils/Utils';
-import {
-  EXPERIMENT_PAGE_VIEW_STATE_SHARE_TAG_PREFIX,
-  EXPERIMENT_PAGE_VIEW_STATE_SHARE_URL_PARAM_KEY,
-} from '../../../../constants';
+import { EXPERIMENT_PAGE_VIEW_STATE_SHARE_URL_PARAM_KEY } from '../../../../constants';
 import { shouldUseCompressedExperimentViewSharedState } from '../../../../../common/utils/FeatureUtils';
 import {
   EXPERIMENT_PAGE_VIEW_MODE_QUERY_PARAM_KEY,
   useExperimentPageViewMode,
 } from '../../hooks/useExperimentPageViewMode';
 import type { ExperimentViewRunsCompareMode } from '../../../../types';
+import { loadExperimentViewState } from '../../utils/persistSearchFacets';
 
 type GetShareLinkModalProps = {
   onCancel: () => void;
   visible: boolean;
   experimentIds: string[];
-  searchFacetsState: ExperimentPageSearchFacetsState;
-  uiState: ExperimentPageUIState;
+  searchFacetsState?: ExperimentPageSearchFacetsState;
+  uiState?: ExperimentPageUIState;
 };
 
 type ShareableViewState = ExperimentPageSearchFacetsState & ExperimentPageUIState;
@@ -37,22 +35,40 @@ const _arePersistedStatesDisjoint: [
   keyof ExperimentPageSearchFacetsState & keyof ExperimentPageUIState extends never ? true : false,
 ] = [true];
 
+/**
+ * UI-state fields excluded from a shared link: per-run state keyed by run UUIDs
+ * that won't exist for the recipient, plus personal/ephemeral preferences.
+ */
+const NON_SHAREABLE_UI_STATE_FIELDS = [
+  'runsExpanded',
+  'runsPinned',
+  'runsHidden',
+  'runsVisibilityMap',
+  'autoRefreshEnabled',
+] as const;
+
+// Guard against pathologically long URLs (charts are the main size driver).
+// Browsers and proxies start truncating well above this, so fall back gracefully.
+const MAX_SHARE_URL_LENGTH = 8000;
+
 const serializePersistedState = async (state: ShareableViewState) => {
+  const shareableState = omit(state, NON_SHAREABLE_UI_STATE_FIELDS);
+  const serialized = JSON.stringify(shareableState);
   if (shouldUseCompressedExperimentViewSharedState()) {
-    return textCompressDeflate(JSON.stringify(state));
+    return textCompressDeflate(serialized);
   }
-  return JSON.stringify(state);
+  return serialized;
 };
 
-const getShareableUrl = (experimentId: string, shareStateHash: string, viewMode?: ExperimentViewRunsCompareMode) => {
+const getShareableUrl = (experimentId: string, shareState: string, viewMode?: ExperimentViewRunsCompareMode) => {
   // As a start, get the route
   const route = Routes.getExperimentPageRoute(experimentId);
 
   // Begin building the query params
   const queryParams = new URLSearchParams();
 
-  // Add the share state hash
-  queryParams.set(EXPERIMENT_PAGE_VIEW_STATE_SHARE_URL_PARAM_KEY, shareStateHash);
+  // Embed the serialized view state directly in the URL so the link is self-contained
+  queryParams.set(EXPERIMENT_PAGE_VIEW_STATE_SHARE_URL_PARAM_KEY, shareState);
 
   // If the view mode is set, add it to the query params
   if (viewMode) {
@@ -67,9 +83,9 @@ const getShareableUrl = (experimentId: string, shareStateHash: string, viewMode?
 };
 
 /**
- * Modal that displays shareable link for the experiment page.
- * The shareable state is created by serializing the search facets and UI state and storing
- * it as a tag on the experiment.
+ * Modal that displays a shareable link for the experiment page. The current view
+ * (search facets + UI state) is serialized, compressed and embedded directly in the
+ * URL, so the link reproduces the view without writing anything to the backend.
  */
 export const ExperimentGetShareLinkModal = ({
   onCancel,
@@ -83,13 +99,27 @@ export const ExperimentGetShareLinkModal = ({
   const [generatedState, setGeneratedState] = useState<ShareableViewState | null>(null);
   const [viewMode] = useExperimentPageViewMode();
 
-  const dispatch = useDispatch<ThunkDispatch>();
+  const persistKey = useMemo(() => JSON.stringify([...experimentIds].sort()), [experimentIds]);
 
-  const stateToSerialize = useMemo(() => ({ ...searchFacetsState, ...uiState }), [searchFacetsState, uiState]);
+  // The modern tabbed experiment page doesn't plumb the live search facets / UI state
+  // into the header, so fall back to the snapshot persisted in local storage.
+  const stateToSerialize = useMemo<ShareableViewState>(() => {
+    if (searchFacetsState && uiState) {
+      return { ...searchFacetsState, ...uiState };
+    }
+    const persistedViewState = loadExperimentViewState(persistKey);
+    return {
+      ...createExperimentPageSearchFacetsState(),
+      ...createExperimentPageUIState(),
+      ...persistedViewState,
+    };
+  }, [searchFacetsState, uiState, persistKey]);
 
-  const createSerializedState = useCallback(
+  const createShareableUrl = useCallback(
     async (state: ShareableViewState) => {
-      if (experimentIds.length > 1) {
+      // Multiple experiments don't map to a single self-contained route; copy the
+      // current URL (its search facets already round-trip through query params).
+      if (experimentIds.length !== 1) {
         setLinkInProgress(false);
         setGeneratedState(state);
         setSharedStateUrl(window.location.href);
@@ -99,30 +129,27 @@ export const ExperimentGetShareLinkModal = ({
       const [experimentId] = experimentIds;
       try {
         const data = await serializePersistedState(state);
-        const hash = await getStringSHA256(data);
+        const url = getShareableUrl(experimentId, data, viewMode);
 
-        const tagName = `${EXPERIMENT_PAGE_VIEW_STATE_SHARE_TAG_PREFIX}${hash}`;
-
-        await dispatch(setExperimentTagApi(experimentId, tagName, data));
-
-        setLinkInProgress(false);
         setGeneratedState(state);
-
-        setSharedStateUrl(getShareableUrl(experimentId, hash, viewMode));
+        // If the encoded view overflows the URL budget, fall back to the plain URL
+        // (search facets still ride along; only the heavier UI state is dropped).
+        setSharedStateUrl(url.length > MAX_SHARE_URL_LENGTH ? window.location.href : url);
+        setLinkInProgress(false);
       } catch (e) {
         Utils.logErrorAndNotifyUser('Failed to create shareable link for experiment');
         throw e;
       }
     },
-    [dispatch, experimentIds, viewMode],
+    [experimentIds, viewMode],
   );
 
   useEffect(() => {
     if (!visible || generatedState === stateToSerialize) {
       return;
     }
-    createSerializedState(stateToSerialize);
-  }, [visible, createSerializedState, generatedState, stateToSerialize]);
+    createShareableUrl(stateToSerialize);
+  }, [visible, createShareableUrl, generatedState, stateToSerialize]);
 
   return (
     <Modal

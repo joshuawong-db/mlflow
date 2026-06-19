@@ -161,6 +161,53 @@ describe('useSharedExperimentViewState', () => {
     });
   });
 
+  describe('self-contained shared links (view state embedded in the URL)', () => {
+    it.each([true, false])(
+      'applies search facets and ui state from a %s-compressed URL blob without a tag lookup',
+      async (isCompressed) => {
+        jest.mocked(shouldUseCompressedExperimentViewSharedState).mockImplementation(() => true);
+
+        const blob = isCompressed
+          ? await textCompressDeflate(testSerializedShareViewState)
+          : testSerializedShareViewState;
+        jest.mocked(useSearchParams).mockReturnValue([new URLSearchParams({ viewStateShareKey: blob }), jest.fn()]);
+
+        // No experiment is passed: a self-contained link must not need a tag lookup
+        const { result } = renderHookWithIntl(() => useSharedExperimentViewState(uiStateSetterMock));
+
+        const expectedFacetsState = omitBy(testFacetsState, isNil);
+        const expectedUiState = omitBy(testUIState, isNil);
+
+        await waitFor(() => {
+          expect(result.current.isViewStateShared).toBe(true);
+          expect(updateSearchFacetsMock).toHaveBeenCalledWith(expect.objectContaining(expectedFacetsState), {
+            replace: true,
+          });
+          expect(uiStateSetterMock).toHaveBeenCalledWith(expect.objectContaining(expectedUiState));
+          expect(result.current.sharedStateError).toBeNull();
+        });
+      },
+    );
+
+    it('reports an error when the embedded blob is malformed', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      const malformedBlob = `${'deflate;'}not-valid-base64-deflate`;
+      jest
+        .mocked(useSearchParams)
+        .mockReturnValue([new URLSearchParams({ viewStateShareKey: malformedBlob }), jest.fn()]);
+
+      const { result } = renderHookWithIntl(() => useSharedExperimentViewState(uiStateSetterMock));
+
+      await waitFor(() => {
+        expect(updateSearchFacetsMock).not.toHaveBeenCalled();
+        expect(uiStateSetterMock).not.toHaveBeenCalled();
+        expect(result.current.sharedStateError).toMatch(/Error loading shared view state: share key is invalid/);
+      });
+      // eslint-disable-next-line no-console -- TODO(FEINF-3587)
+      jest.mocked(console.error).mockRestore();
+    });
+  });
+
   test('should recognize uncompressed state also when compression flag is enabled', async () => {
     jest.mocked(shouldUseCompressedExperimentViewSharedState).mockImplementation(() => true);
 
