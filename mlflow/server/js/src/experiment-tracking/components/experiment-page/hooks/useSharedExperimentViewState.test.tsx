@@ -159,6 +159,28 @@ describe('useSharedExperimentViewState', () => {
         jest.mocked(console.error).mockRestore();
       });
     });
+
+    it('does not apply or clear view state when the legacy share key has no matching tag', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest
+        .mocked(useSearchParams)
+        .mockReturnValue([new URLSearchParams(`viewStateShareKey=${testSerializedStateHash}`), jest.fn()]);
+
+      // Bare-hash key routes to the legacy branch; the experiment has no matching tag.
+      const experimentWithoutTag = { experimentId: 'experiment_1', tags: [] } as unknown as ExperimentEntity;
+
+      const { result } = renderHookWithIntl(() =>
+        useSharedExperimentViewState(uiStateSetterMock, experimentWithoutTag),
+      );
+
+      await waitFor(() => {
+        expect(updateSearchFacetsMock).not.toHaveBeenCalled();
+        expect(uiStateSetterMock).not.toHaveBeenCalled();
+        expect(result.current.sharedStateError).toMatch(/does not exist/);
+      });
+      // eslint-disable-next-line no-console -- TODO(FEINF-3587)
+      jest.mocked(console.error).mockRestore();
+    });
   });
 
   describe('self-contained shared links (view state embedded in the URL)', () => {
@@ -234,6 +256,26 @@ describe('useSharedExperimentViewState', () => {
       jest
         .mocked(useSearchParams)
         .mockReturnValue([new URLSearchParams({ viewStateShareKey: malformedBlob }), jest.fn()]);
+
+      const { result } = renderHookWithIntl(() => useSharedExperimentViewState(uiStateSetterMock));
+
+      await waitFor(() => {
+        expect(updateSearchFacetsMock).not.toHaveBeenCalled();
+        expect(uiStateSetterMock).not.toHaveBeenCalled();
+        expect(result.current.sharedStateError).toMatch(/Error loading shared view state: share key is invalid/);
+      });
+      // eslint-disable-next-line no-console -- TODO(FEINF-3587)
+      jest.mocked(console.error).mockRestore();
+    });
+
+    it('does not apply or clear view state when the embedded blob is valid JSON but not an object', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.mocked(shouldUseCompressedExperimentViewSharedState).mockImplementation(() => true);
+
+      // Deflate-wrapped so it is detected as self-contained, but decodes to a non-object (42),
+      // which must be rejected without touching the user's existing view.
+      const blob = await textCompressDeflate('42');
+      jest.mocked(useSearchParams).mockReturnValue([new URLSearchParams({ viewStateShareKey: blob }), jest.fn()]);
 
       const { result } = renderHookWithIntl(() => useSharedExperimentViewState(uiStateSetterMock));
 
