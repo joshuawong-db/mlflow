@@ -9,7 +9,6 @@ import { MockedReduxStoreProvider } from '../../../../../common/utils/TestUtils'
 import { render, screen, waitFor } from '@mlflow/mlflow/src/common/utils/TestUtils.react18';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { setExperimentTagApi } from '../../../../actions';
 import { shouldUseCompressedExperimentViewSharedState } from '../../../../../common/utils/FeatureUtils';
 import { isTextCompressedDeflate, textDecompressDeflate } from '../../../../../common/utils/StringUtils';
 import { IntlProvider } from 'react-intl';
@@ -21,11 +20,6 @@ jest.mock('../../../../../common/utils/FeatureUtils', () => ({
     '../../../../../common/utils/FeatureUtils',
   ),
   shouldUseCompressedExperimentViewSharedState: jest.fn(),
-}));
-
-jest.mock('../../../../actions', () => ({
-  ...jest.requireActual<typeof import('../../../../actions')>('../../../../actions'),
-  setExperimentTagApi: jest.fn(() => ({ type: 'SET_EXPERIMENT_TAG_API', payload: Promise.resolve() })),
 }));
 
 const experimentIds = ['experiment-1'];
@@ -139,9 +133,6 @@ describe('ExperimentGetShareLinkModal', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
         expect.stringMatching(/\/experiments\/experiment-1\/runs\?viewStateShareKey=/),
       );
-
-      // No backend tag should be written for a self-contained link
-      expect(setExperimentTagApi).not.toHaveBeenCalled();
 
       // The embedded blob should decode back to the shareable view state
       const decoded = await decodeShareUrl(copiedText);

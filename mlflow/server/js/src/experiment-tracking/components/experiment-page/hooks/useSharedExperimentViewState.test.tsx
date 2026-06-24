@@ -1,5 +1,5 @@
 import { jest, describe, beforeEach, it, expect, test } from '@jest/globals';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { NavigateFunction } from '../../../../common/utils/RoutingUtils';
 import { useSearchParams, useNavigate } from '../../../../common/utils/RoutingUtils';
 
@@ -11,7 +11,7 @@ import { createExperimentPageSearchFacetsState } from '../models/ExperimentPageS
 import { isNil, omitBy } from 'lodash';
 import { IntlProvider } from 'react-intl';
 import { shouldUseCompressedExperimentViewSharedState } from '../../../../common/utils/FeatureUtils';
-import { textCompressDeflate } from '../../../../common/utils/StringUtils';
+import { textCompressDeflate, textDecompressDeflate } from '../../../../common/utils/StringUtils';
 
 jest.mock('../../../../common/utils/FeatureUtils', () => ({
   ...jest.requireActual<typeof import('../../../../common/utils/FeatureUtils')>(
@@ -188,6 +188,45 @@ describe('useSharedExperimentViewState', () => {
         });
       },
     );
+
+    it('applies the embedded blob only once when the experiment reference changes', async () => {
+      jest.mocked(shouldUseCompressedExperimentViewSharedState).mockImplementation(() => true);
+
+      const blob = await textCompressDeflate(testSerializedShareViewState);
+      jest.mocked(useSearchParams).mockReturnValue([new URLSearchParams({ viewStateShareKey: blob }), jest.fn()]);
+
+      // A self-contained link doesn't need an experiment, but `experiment` (passed as
+      // first(experiments)) loads async and later mutates on tag edits. The hook must
+      // not re-apply the URL blob over the user's edits each time that reference changes.
+      const { rerender } = renderHook(
+        ({ experiment }: { experiment?: ExperimentEntity }) =>
+          useSharedExperimentViewState(uiStateSetterMock, experiment),
+        {
+          initialProps: { experiment: undefined as ExperimentEntity | undefined },
+          wrapper: ({ children }) => <IntlProvider locale="en">{children}</IntlProvider>,
+        },
+      );
+
+      await waitFor(() => {
+        expect(updateSearchFacetsMock).toHaveBeenCalledTimes(1);
+        expect(uiStateSetterMock).toHaveBeenCalledTimes(1);
+      });
+
+      // experiment resolves (undefined -> defined), then a tag edit refetches it (new ref)
+      rerender({ experiment: { experimentId: 'experiment_1', tags: [] } as unknown as ExperimentEntity });
+      rerender({ experiment: { experimentId: 'experiment_1', tags: [] } as unknown as ExperimentEntity });
+
+      // Let any (buggy) re-application settle: the apply path awaits the same decompress,
+      // and act() flushes the resulting state updates + downstream effects. Without the
+      // guard this is where updateSearchFacets/uiStateSetter would fire a second time.
+      await act(async () => {
+        await textDecompressDeflate(blob);
+        await Promise.resolve();
+      });
+
+      expect(updateSearchFacetsMock).toHaveBeenCalledTimes(1);
+      expect(uiStateSetterMock).toHaveBeenCalledTimes(1);
+    });
 
     it('reports an error when the embedded blob is malformed', async () => {
       jest.spyOn(console, 'error').mockImplementation(() => {});

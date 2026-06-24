@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { EXPERIMENT_PAGE_QUERY_PARAM_KEYS, useUpdateExperimentPageSearchFacets } from './useExperimentPageSearchFacets';
 import { pick } from 'lodash';
@@ -54,6 +54,10 @@ export const useSharedExperimentViewState = (
   const [sharedStateError, setSharedStateError] = useState<string | null>(null);
   const [sharedStateErrorMessage, setSharedStateErrorMessage] = useState<string | null>(null);
 
+  // Tracks the self-contained key we've already consumed this session. See the guard
+  // in the effect below for why this is needed.
+  const appliedSelfContainedKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!viewStateShareKey) {
       return;
@@ -91,9 +95,17 @@ export const useSharedExperimentViewState = (
       );
     };
 
-    // Self-contained shared link: the view state is embedded in the URL param, so it
-    // can be applied directly without a backend tag lookup.
+    // Self-contained shared link: the view state is embedded in the URL param
     if (isSelfContainedShareState(viewStateShareKey)) {
+      // Apply a given self-contained link exactly once. This effect also re-runs when
+      // `experiment` gets a new reference (e.g. editing experiment notes/tags refetches
+      // the entity); without this guard it would re-apply the URL blob over the user's
+      // subsequent edits. A different key (navigating to another shared link) still
+      // applies. Latch synchronously so a fast re-run can't slip past the pending async.
+      if (appliedSelfContainedKeyRef.current === viewStateShareKey) {
+        return;
+      }
+      appliedSelfContainedKeyRef.current = viewStateShareKey;
       const parseSelfContainedState = async () => {
         try {
           const parsedSharedViewState = await deserializePersistedState(viewStateShareKey);
@@ -149,6 +161,8 @@ export const useSharedExperimentViewState = (
     }
 
     tryParseSharedStateFromTag(shareViewTag);
+    // `experiment` is required by the legacy tag-lookup path below; the self-contained
+    // path above is guarded against re-applying when it re-fires on an experiment change.
   }, [experiment, viewStateShareKey, intl]);
 
   useEffect(() => {

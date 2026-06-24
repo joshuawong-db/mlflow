@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
-import { GenericSkeleton, Input, Modal } from '@databricks/design-system';
+import { Alert, GenericSkeleton, Input, Modal } from '@databricks/design-system';
 import { omit } from 'lodash';
 import Routes from '../../../../routes';
 import { CopyButton } from '../../../../../shared/building_blocks/CopyButton';
@@ -97,6 +97,9 @@ export const ExperimentGetShareLinkModal = ({
 }: GetShareLinkModalProps) => {
   const [sharedStateUrl, setSharedStateUrl] = useState<string>('');
   const [linkInProgress, setLinkInProgress] = useState(true);
+  // True when the encoded view overflowed the URL budget and we fell back to a plain
+  // link that drops the heavier UI state (layout/charts). Surfaced to the user below.
+  const [linkSimplified, setLinkSimplified] = useState(false);
   const [viewMode] = useExperimentPageViewMode();
 
   const persistKey = useMemo(() => JSON.stringify([...experimentIds].sort()), [experimentIds]);
@@ -124,6 +127,7 @@ export const ExperimentGetShareLinkModal = ({
     // current URL (its search facets already round-trip through query params).
     if (experimentIds.length !== 1) {
       setSharedStateUrl(window.location.href);
+      setLinkSimplified(false);
       setLinkInProgress(false);
       return;
     }
@@ -135,7 +139,9 @@ export const ExperimentGetShareLinkModal = ({
 
       // If the encoded view overflows the URL budget, fall back to the plain URL
       // (search facets still ride along; only the heavier UI state is dropped).
-      setSharedStateUrl(url.length > MAX_SHARE_URL_LENGTH ? window.location.href : url);
+      const overflowed = url.length > MAX_SHARE_URL_LENGTH;
+      setSharedStateUrl(overflowed ? window.location.href : url);
+      setLinkSimplified(overflowed);
       setLinkInProgress(false);
     } catch (e) {
       Utils.logErrorAndNotifyUser('Failed to create shareable link for experiment');
@@ -162,6 +168,20 @@ export const ExperimentGetShareLinkModal = ({
       visible={visible}
       onCancel={onCancel}
     >
+      {linkSimplified && !linkInProgress ? (
+        <Alert
+          componentId="mlflow.experiment_page.share_link.simplified_warning"
+          type="warning"
+          closable={false}
+          css={{ marginBottom: 8 }}
+          message={
+            <FormattedMessage
+              defaultMessage="This view is too large to fit in a link. The link will open the experiment with your filters and sorting, but without the saved column layout and charts."
+              description="Warning shown in the experiment share-link modal when the view is too large to embed in the URL and a simplified link is shared instead"
+            />
+          }
+        />
+      ) : null}
       <div css={{ display: 'flex', gap: 8 }}>
         {linkInProgress ? (
           <GenericSkeleton css={{ flex: 1 }} />
