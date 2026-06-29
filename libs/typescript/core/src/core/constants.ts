@@ -88,6 +88,10 @@ export const SpanAttributeKey = {
   // propagated to descendant LLM/TOOL/AGENT spans created within the skill body, so cost and
   // latency can be attributed back to the originating skill.
   SKILL_NAME: 'mlflow.skill.name',
+  // Uniquely identifies a single skill invocation (the skill's anchor span_id), propagated to
+  // every span in that invocation's scope so two invocations of the same skill stay distinct.
+  // Enables per-invocation wall-clock aggregation for the skill_latency metric.
+  SKILL_INVOCATION_ID: 'mlflow.skill.invocation_id',
 };
 
 /**

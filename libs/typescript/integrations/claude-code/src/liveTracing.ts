@@ -38,6 +38,7 @@ import {
   buildUsageDict,
   extractContentAndTools,
   sanitizeForSpan,
+  skillAttributes,
 } from './_internal.js';
 
 // Tool names that invoke a sub-agent. `'Agent'` is what the Claude Agent SDK
@@ -110,6 +111,7 @@ export class LiveTracingContext {
   private permissionMode: string | undefined;
   private claudeCodeVersion: string | undefined;
   private activeSkillName: string | undefined;
+  private activeInvocationId: string | undefined;
   // Tracks whether the previous user message carried a Skill tool_use_result so
   // we can detect skill content injections (which always follow such a result
   // and look structurally identical to a real user prompt). Mirrors the
@@ -151,10 +153,11 @@ export class LiveTracingContext {
     this.model = msg.model ?? this.model;
     this.permissionMode = msg.permissionMode ?? this.permissionMode;
     this.claudeCodeVersion = msg.claude_code_version ?? this.claudeCodeVersion;
-    // Reset both skill-scope state fields together: clearing activeSkillName
+    // Reset all skill-scope state fields together: clearing activeSkillName
     // without also clearing prevUserHadCommandName would leave the next user
     // message classified as a skill body injection.
     this.activeSkillName = undefined;
+    this.activeInvocationId = undefined;
     this.prevUserHadCommandName = false;
   }
 
@@ -183,7 +186,10 @@ export class LiveTracingContext {
           model,
           'mlflow.llm.model': model,
           [SpanAttributeKey.MESSAGE_FORMAT]: 'anthropic',
-          ...(this.activeSkillName ? { [SpanAttributeKey.SKILL_NAME]: this.activeSkillName } : {}),
+          ...skillAttributes({
+            skillName: this.activeSkillName,
+            invocationId: this.activeInvocationId,
+          }),
         },
       });
       if (msg.message.usage) {
@@ -206,7 +212,10 @@ export class LiveTracingContext {
         attributes: {
           tool_name: toolUse.name,
           tool_id: toolUse.id,
-          ...(this.activeSkillName ? { [SpanAttributeKey.SKILL_NAME]: this.activeSkillName } : {}),
+          ...skillAttributes({
+            skillName: this.activeSkillName,
+            invocationId: this.activeInvocationId,
+          }),
         },
       });
       this.openToolSpans.set(toolUse.id, toolSpan);
@@ -227,9 +236,10 @@ export class LiveTracingContext {
           },
           attributes: {
             subagent_type: subagentType,
-            ...(this.activeSkillName
-              ? { [SpanAttributeKey.SKILL_NAME]: this.activeSkillName }
-              : {}),
+            ...skillAttributes({
+              skillName: this.activeSkillName,
+              invocationId: this.activeInvocationId,
+            }),
           },
         });
         this.subagentSpans.set(toolUse.id, subagentSpan);
@@ -321,6 +331,7 @@ export class LiveTracingContext {
     try {
       if (this.isRealUserPrompt(msg)) {
         this.activeSkillName = undefined;
+        this.activeInvocationId = undefined;
       }
 
       const parentKey: ConversationKey = msg.parent_tool_use_id ?? null;
@@ -387,8 +398,18 @@ export class LiveTracingContext {
         //     into recovery spans, and the failed skill never injected its body
         //     so it shouldn't propagate either)
         if (msg.tool_use_result?.commandName) {
+          // The Skill TOOL span anchors the invocation: its own span_id is the invocation id,
+          // propagated to descendant spans on success.
+          const invocationId = toolSpan.spanId;
           toolSpan.setAttribute(SpanAttributeKey.SKILL_NAME, msg.tool_use_result.commandName);
-          this.activeSkillName = toolResult.is_error ? undefined : msg.tool_use_result.commandName;
+          toolSpan.setAttribute(SpanAttributeKey.SKILL_INVOCATION_ID, invocationId);
+          if (toolResult.is_error) {
+            this.activeSkillName = undefined;
+            this.activeInvocationId = undefined;
+          } else {
+            this.activeSkillName = msg.tool_use_result.commandName;
+            this.activeInvocationId = invocationId;
+          }
         }
         toolSpan.end();
         this.openToolSpans.delete(toolUseId);

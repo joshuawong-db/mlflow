@@ -140,6 +140,19 @@ SPANS_METRICS_CONFIGS: dict[SpanMetricKey, TraceMetricsConfig] = {
             SpanMetricDimensionKey.SPAN_SKILL_NAME,
         },
     ),
+    # Per-skill-invocation wall-clock latency (ms). Computed via a per-invocation subquery
+    # (see _build_skill_invocation_subquery) then aggregated across invocations per skill.
+    # SPAN_SKILL_INVOCATION_ID is deliberately NOT a dimension here: it is high-cardinality
+    # and used only internally to collapse spans into invocations.
+    SpanMetricKey.SKILL_LATENCY: TraceMetricsConfig(
+        aggregation_types={
+            AggregationType.SUM,
+            AggregationType.AVG,
+            AggregationType.MIN,
+            AggregationType.MAX,
+        },
+        dimensions={SpanMetricDimensionKey.SPAN_SKILL_NAME},
+    ),
 }
 
 ASSESSMENTS_METRICS_CONFIGS: dict[str, TraceMetricsConfig] = {
@@ -291,6 +304,10 @@ def _get_aggregation_expression(
             return func.sum(column)
         case AggregationType.AVG:
             return func.avg(column)
+        case AggregationType.MIN:
+            return func.min(column)
+        case AggregationType.MAX:
+            return func.max(column)
         case AggregationType.PERCENTILE:
             return get_percentile_aggregation(
                 db_type, aggregation.percentile_value, column, partition_by_columns
@@ -735,6 +752,54 @@ def _build_query_with_percentile_subquery(
     return outer_query, select_columns
 
 
+def _build_skill_invocation_subquery(
+    query: Query, db_type: str, dimensions: list[str] | None
+) -> tuple[Query, Column, list[Column]]:
+    """Collapse skill-tagged spans into one row per skill invocation.
+
+    SKILL_LATENCY is a per-invocation wall-clock metric: a single invocation's duration is
+    ``MAX(end) - MIN(start)`` over its spans (robust to nested/overlapping subagent spans, which
+    a naive sum of span durations would double-count). Spans are grouped into invocations by
+    ``(skill name, invocation id)``; the per-invocation durations are then aggregated per skill
+    by the caller's aggregations.
+
+    Returns ``(outer_query_over_subquery, per_invocation_duration_column, dimension_columns)``.
+    """
+    skill_col = _get_json_dimension_column(
+        db_type, SpanAttributeKey.SKILL_NAME, SpanMetricDimensionKey.SPAN_SKILL_NAME
+    )
+    invocation_col = _get_json_dimension_column(
+        db_type,
+        SpanAttributeKey.SKILL_INVOCATION_ID,
+        SpanMetricDimensionKey.SPAN_SKILL_INVOCATION_ID,
+    )
+    # Wall-clock per invocation in milliseconds (nanoseconds floored to ms, matching
+    # _get_column_to_aggregate's span-latency conversion).
+    duration_ms = (
+        (func.max(SqlSpan.end_time_unix_nano) - func.min(SqlSpan.start_time_unix_nano)) // 1000000
+    ).label("duration_ms")
+
+    invocation_subquery = (
+        query
+        .filter(skill_col.element.isnot(None), invocation_col.element.isnot(None))
+        .with_entities(skill_col, invocation_col, duration_ms)
+        .group_by(skill_col.element, invocation_col.element)
+        .subquery()
+    )
+
+    agg_column = invocation_subquery.c.duration_ms
+    outer_query = query.session.query(agg_column).select_from(invocation_subquery)
+
+    dimension_columns: list[Column] = []
+    if dimensions and SpanMetricDimensionKey.SPAN_SKILL_NAME in dimensions:
+        dimension_columns.append(
+            invocation_subquery.c[SpanMetricDimensionKey.SPAN_SKILL_NAME].label(
+                SpanMetricDimensionKey.SPAN_SKILL_NAME
+            )
+        )
+    return outer_query, agg_column, dimension_columns
+
+
 def query_metrics(
     view_type: MetricViewType,
     db_type: str,
@@ -767,21 +832,35 @@ def query_metrics(
 
     query = _apply_filters(query, filters, view_type)
 
-    # Apply metric-specific joins first, before dimensions
-    # This ensures tables like SqlSpanMetrics are available for dimension extraction
-    query = _apply_metric_specific_joins(query, metric_name, view_type)
-    agg_column = _get_column_to_aggregate(view_type, metric_name)
+    if metric_name == SpanMetricKey.SKILL_LATENCY:
+        # Per-invocation wall-clock metric: collapse skill-tagged spans into one row per
+        # invocation via a subquery, then let the standard aggregation machinery below
+        # aggregate those per-invocation durations per skill.
+        if time_interval_seconds:
+            raise MlflowException.invalid_parameter_value(
+                "time_interval_seconds is not supported for the skill_latency metric"
+            )
+        query, agg_column, dimension_columns = _build_skill_invocation_subquery(
+            query, db_type, dimensions
+        )
+    else:
+        # Apply metric-specific joins first, before dimensions
+        # This ensures tables like SqlSpanMetrics are available for dimension extraction
+        query = _apply_metric_specific_joins(query, metric_name, view_type)
+        agg_column = _get_column_to_aggregate(view_type, metric_name)
 
-    # Group by dimension columns, labeled for SELECT
-    dimension_columns = []
+        # Group by dimension columns, labeled for SELECT
+        dimension_columns = []
 
-    if time_interval_seconds:
-        time_bucket_expr = get_time_bucket_expression(view_type, time_interval_seconds, db_type)
-        dimension_columns.append(time_bucket_expr.label(TIME_BUCKET_LABEL))
+        if time_interval_seconds:
+            time_bucket_expr = get_time_bucket_expression(view_type, time_interval_seconds, db_type)
+            dimension_columns.append(time_bucket_expr.label(TIME_BUCKET_LABEL))
 
-    for dimension in dimensions or []:
-        query, dimension_column = _apply_dimension_to_query(query, dimension, view_type, db_type)
-        dimension_columns.append(dimension_column)
+        for dimension in dimensions or []:
+            query, dimension_column = _apply_dimension_to_query(
+                query, dimension, view_type, db_type
+            )
+            dimension_columns.append(dimension_column)
 
     # MSSQL and MySQL with percentile need special handling (window function requires subquery)
     if db_type in (db_types.MSSQL, db_types.MYSQL) and _has_percentile_aggregation(aggregations):

@@ -4999,6 +4999,7 @@ class SqlAlchemyStore(SqlAlchemyGatewayStoreMixin, AbstractStore):
                     SpanAttributeKey.MODEL,
                     SpanAttributeKey.MODEL_PROVIDER,
                     SpanAttributeKey.SKILL_NAME,
+                    SpanAttributeKey.SKILL_INVOCATION_ID,
                 ]
                 dimension_attributes = {}
                 for key in dimension_attribute_keys:

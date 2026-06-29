@@ -4,7 +4,7 @@
  * the leading underscore signals "do not import from `@mlflow/claude-code`".
  */
 
-import { TokenUsageKey } from '@mlflow/core';
+import { SpanAttributeKey, TokenUsageKey } from '@mlflow/core';
 
 import type { ContentBlock, TokenUsage } from './types.js';
 
@@ -17,6 +17,37 @@ export const MAX_PREVIEW_LENGTH = 1000;
 export const METADATA_KEY_CLAUDE_CODE_VERSION = 'mlflow.claude_code_version';
 export const METADATA_KEY_WORKING_DIRECTORY = 'mlflow.trace.working_directory';
 export const METADATA_KEY_PERMISSION_MODE = 'mlflow.trace.permission_mode';
+
+// ============================================================================
+// Skill-scope helpers
+// ============================================================================
+
+/**
+ * The active skill scope propagated to every span created inside a skill body.
+ * `invocationId` is the skill's anchor span_id, used to group spans into a single
+ * invocation for the skill_latency wall-clock metric.
+ */
+export interface SkillScope {
+  skillName?: string;
+  invocationId?: string;
+}
+
+/**
+ * Build the skill-scope span attributes shared by every span-creation path
+ * (transcript replay and the live SDK stream). Routing all set-sites through this
+ * helper keeps SKILL_NAME and SKILL_INVOCATION_ID in lock-step, so a new entry
+ * point cannot silently set one without the other.
+ */
+export function skillAttributes(scope: SkillScope | undefined): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  if (scope?.skillName) {
+    attrs[SpanAttributeKey.SKILL_NAME] = scope.skillName;
+  }
+  if (scope?.invocationId) {
+    attrs[SpanAttributeKey.SKILL_INVOCATION_ID] = scope.invocationId;
+  }
+  return attrs;
+}
 
 // ============================================================================
 // Content / token helpers

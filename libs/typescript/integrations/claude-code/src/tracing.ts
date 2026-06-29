@@ -25,8 +25,10 @@ import {
   METADATA_KEY_CLAUDE_CODE_VERSION,
   METADATA_KEY_PERMISSION_MODE,
   METADATA_KEY_WORKING_DIRECTORY,
+  type SkillScope,
   buildUsageDict,
   extractContentAndTools,
+  skillAttributes,
 } from './_internal.js';
 
 // ============================================================================
@@ -245,6 +247,7 @@ function createAgentWrapperSpan(
   parentSpan: LiveSpan,
   toolInput: Record<string, unknown>,
   startNs: number,
+  scope?: SkillScope,
 ): LiveSpan {
   const subagentType = (toolInput.subagent_type as string) ?? '';
   const description = (toolInput.description as string) ?? '';
@@ -257,7 +260,7 @@ function createAgentWrapperSpan(
     spanType: SpanType.AGENT,
     startTimeNs: startNs,
     inputs: { prompt, description },
-    attributes: { subagent_type: subagentType },
+    attributes: { subagent_type: subagentType, ...skillAttributes(scope) },
   });
 }
 
@@ -270,13 +273,14 @@ function createSubagentSpans(
   startNs: number,
   totalDurationNs: number,
   toolInput: Record<string, unknown>,
+  scope?: SkillScope,
 ): void {
   const innerMessages = group.messages;
   if (!innerMessages.length) {
     return;
   }
 
-  const agentSpan = createAgentWrapperSpan(parentSpan, toolInput, startNs);
+  const agentSpan = createAgentWrapperSpan(parentSpan, toolInput, startNs, scope);
 
   // Find first assistant message index
   let firstAssistantIdx = 0;
@@ -287,7 +291,7 @@ function createSubagentSpans(
     }
   }
 
-  createLlmAndToolSpans(agentSpan, innerMessages, firstAssistantIdx);
+  createLlmAndToolSpans(agentSpan, innerMessages, firstAssistantIdx, undefined, scope);
   agentSpan.end({ endTimeNs: startNs + totalDurationNs });
 }
 
@@ -300,6 +304,7 @@ function createSubagentSpansFromFile(
   startNs: number,
   totalDurationNs: number,
   toolInput: Record<string, unknown>,
+  scope?: SkillScope,
 ): void {
   try {
     const subagentTranscript = readTranscript(subagentTranscriptPath);
@@ -307,7 +312,7 @@ function createSubagentSpansFromFile(
       return;
     }
 
-    const agentSpan = createAgentWrapperSpan(parentSpan, toolInput, startNs);
+    const agentSpan = createAgentWrapperSpan(parentSpan, toolInput, startNs, scope);
 
     let firstAssistantIdx = 0;
     for (let idx = 0; idx < subagentTranscript.length; idx++) {
@@ -317,7 +322,13 @@ function createSubagentSpansFromFile(
       }
     }
 
-    createLlmAndToolSpans(agentSpan, subagentTranscript, firstAssistantIdx, subagentTranscriptPath);
+    createLlmAndToolSpans(
+      agentSpan,
+      subagentTranscript,
+      firstAssistantIdx,
+      subagentTranscriptPath,
+      scope,
+    );
     agentSpan.end({ endTimeNs: startNs + totalDurationNs });
   } catch (err) {
     console.error(
@@ -339,9 +350,13 @@ function createLlmAndToolSpans(
   transcript: TranscriptEntry[],
   startIdx: number,
   transcriptPath?: string,
+  inheritedScope?: SkillScope,
 ): void {
   const subagentGroups = collectSubagentGroups(transcript, startIdx);
-  let activeSkillName: string | undefined = undefined;
+  // Seed from the inherited scope so a subagent's spans stay attributed to the skill that
+  // invoked the parent Task (the recursive call below passes the active scope down).
+  let activeSkillName: string | undefined = inheritedScope?.skillName;
+  let activeInvocationId: string | undefined = inheritedScope?.invocationId;
 
   for (let i = startIdx; i < transcript.length; i++) {
     const entry = transcript[i];
@@ -383,7 +398,7 @@ function createLlmAndToolSpans(
           model,
           'mlflow.llm.model': model,
           [SpanAttributeKey.MESSAGE_FORMAT]: 'anthropic',
-          ...(activeSkillName ? { [SpanAttributeKey.SKILL_NAME]: activeSkillName } : {}),
+          ...skillAttributes({ skillName: activeSkillName, invocationId: activeInvocationId }),
         },
       });
 
@@ -411,20 +426,17 @@ function createLlmAndToolSpans(
         const toolName = toolUse.name ?? 'unknown';
         const commandName = toolResultInfo?.commandName;
 
-        // Stamp the Skill's own TOOL span with its own commandName for
-        // identification (failed Skills are still attributable).
+        // A Skill's own TOOL span anchors a new invocation scope: it is stamped with its
+        // commandName (failed Skills are still attributable) and with its own span_id as the
+        // invocation id. Descendant spans inherit both.
         // Propagation:
-        //   - success: activeSkillName = commandName (child spans inherit)
-        //   - failure: activeSkillName = undefined (prior skill must not leak
-        //     into recovery spans, and the failed skill itself never injected
-        //     its body so it shouldn't propagate either)
-        let spanSkillName: string | undefined;
-        if (commandName) {
-          spanSkillName = commandName;
-          activeSkillName = toolResultInfo?.isError ? undefined : commandName;
-        } else {
-          spanSkillName = activeSkillName;
-        }
+        //   - success: active scope = (commandName, this span_id); child spans inherit
+        //   - failure: active scope cleared (a failed skill never injected its body, and a
+        //     prior skill must not leak into recovery spans)
+        const isSkillAnchor = Boolean(commandName);
+        const spanScope: SkillScope = isSkillAnchor
+          ? { skillName: commandName }
+          : { skillName: activeSkillName, invocationId: activeInvocationId };
 
         const toolSpan = startSpan({
           name: `tool_${toolName}`,
@@ -435,9 +447,28 @@ function createLlmAndToolSpans(
           attributes: {
             tool_name: toolName,
             tool_id: toolUseId,
-            ...(spanSkillName ? { [SpanAttributeKey.SKILL_NAME]: spanSkillName } : {}),
+            ...skillAttributes(spanScope),
           },
         });
+
+        if (isSkillAnchor) {
+          const invocationId = toolSpan.spanId;
+          toolSpan.setAttribute(SpanAttributeKey.SKILL_INVOCATION_ID, invocationId);
+          if (toolResultInfo?.isError) {
+            activeSkillName = undefined;
+            activeInvocationId = undefined;
+          } else {
+            activeSkillName = commandName;
+            activeInvocationId = invocationId;
+          }
+        }
+
+        // Sub-agent spans inherit the current skill scope so their cost/latency is attributed
+        // back to the invoking skill (and counted in its wall-clock).
+        const childScope: SkillScope = {
+          skillName: activeSkillName,
+          invocationId: activeInvocationId,
+        };
 
         // If this is a Task tool, try to read sub-agent transcript
         const agentId = toolResultInfo?.agentId;
@@ -451,6 +482,7 @@ function createLlmAndToolSpans(
             toolStartNs,
             toolDurationNs,
             toolInput,
+            childScope,
           );
         } else if (subagentGroups[toolUseId]) {
           createSubagentSpans(
@@ -459,6 +491,7 @@ function createLlmAndToolSpans(
             toolStartNs,
             toolDurationNs,
             toolInput,
+            childScope,
           );
         }
 

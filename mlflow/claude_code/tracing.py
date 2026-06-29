@@ -431,6 +431,20 @@ def _build_usage_dict(usage: dict[str, Any]) -> dict[str, int]:
     return usage_dict
 
 
+def _skill_attributes(skill_name: str | None, invocation_id: str | None = None) -> dict[str, str]:
+    """Build the skill-scope span attributes shared by every span-creation path.
+
+    Routing all set-sites through this helper keeps ``SKILL_NAME`` and ``SKILL_INVOCATION_ID``
+    in lock-step, so a new entry point cannot silently set one without the other.
+    """
+    attrs: dict[str, str] = {}
+    if skill_name:
+        attrs[SpanAttributeKey.SKILL_NAME] = skill_name
+    if invocation_id:
+        attrs[SpanAttributeKey.SKILL_INVOCATION_ID] = invocation_id
+    return attrs
+
+
 def _set_token_usage_attribute(span, usage: dict[str, Any]) -> None:
     """Set token usage on a span using the standardized CHAT_USAGE attribute.
 
@@ -449,9 +463,10 @@ def _create_llm_and_tool_spans(
 ) -> None:
     """Create LLM and tool spans for assistant responses with proper timing."""
 
-    # Keeps track of the active skill name as all child spans of active skills
-    # need to be tagged for cost attribution purposes
+    # Keeps track of the active skill scope (name + invocation id) as all child spans of
+    # active skills need to be tagged for cost/latency attribution purposes.
     active_skill_name: str | None = None
+    active_invocation_id: str | None = None
 
     for i in range(start_idx, len(transcript)):
         entry = transcript[i]
@@ -490,11 +505,7 @@ def _create_llm_and_tool_spans(
                 attributes={
                     "model": msg.get("model", "unknown"),
                     SpanAttributeKey.MESSAGE_FORMAT: "anthropic",
-                    **(
-                        {SpanAttributeKey.SKILL_NAME: active_skill_name}
-                        if active_skill_name
-                        else {}
-                    ),
+                    **_skill_attributes(active_skill_name, active_invocation_id),
                 },
             )
 
@@ -519,20 +530,20 @@ def _create_llm_and_tool_spans(
                 tool_use_id = tool_use.get("id", "")
                 tool_result = tool_results.get(tool_use_id, None)
 
-                # Stamp the Skill's own TOOL span with its own commandName for
-                # identification (so a failed Skill is still attributable).
+                # A Skill's own TOOL span anchors a new invocation scope: it is stamped with
+                # its commandName (so a failed Skill is still attributable) and with its own
+                # span_id as the invocation id. Descendant spans inherit both.
                 # Propagation rules:
-                #   - success: active_skill_name = commandName (child spans inherit)
-                #   - failure: active_skill_name = None (prior skill must not leak
-                #     into recovery spans, and the failed skill itself never
-                #     injected its body so it shouldn't propagate either)
-                if tool_result and tool_result.command_name:
+                #   - success: active scope = (commandName, this span_id); children inherit
+                #   - failure: active scope cleared (a failed skill never injected its body,
+                #     and a prior skill must not leak into recovery spans)
+                is_skill_anchor = bool(tool_result and tool_result.command_name)
+                if is_skill_anchor:
                     span_skill_name = tool_result.command_name
-                    active_skill_name = (
-                        tool_result.command_name if not tool_result.is_error else None
-                    )
+                    span_invocation_id = None  # filled with this span's own id below
                 else:
                     span_skill_name = active_skill_name
+                    span_invocation_id = active_invocation_id
 
                 tool_span = mlflow.start_span_no_context(
                     name=f"tool_{tool_use.get('name', 'unknown')}",
@@ -543,13 +554,19 @@ def _create_llm_and_tool_spans(
                     attributes={
                         "tool_name": tool_use.get("name", "unknown"),
                         "tool_id": tool_use_id,
-                        **(
-                            {SpanAttributeKey.SKILL_NAME: span_skill_name}
-                            if span_skill_name
-                            else {}
-                        ),
+                        **_skill_attributes(span_skill_name, span_invocation_id),
                     },
                 )
+
+                if is_skill_anchor:
+                    invocation_id = tool_span.span_id
+                    tool_span.set_attribute(SpanAttributeKey.SKILL_INVOCATION_ID, invocation_id)
+                    if tool_result.is_error:
+                        active_skill_name = None
+                        active_invocation_id = None
+                    else:
+                        active_skill_name = tool_result.command_name
+                        active_invocation_id = invocation_id
 
                 tool_span.set_outputs({
                     "result": tool_result.content if tool_result else "No result found"
@@ -863,10 +880,12 @@ def _create_sdk_child_spans(
     final_response = None
     pending_messages: list[dict[str, Any]] = []
     active_skill_name: str | None = None
+    active_invocation_id: str | None = None
 
     for idx, msg in enumerate(messages):
         if _is_real_sdk_user_prompt(messages, idx):
             active_skill_name = None
+            active_invocation_id = None
 
         if isinstance(msg, AssistantMessage) and msg.content:
             text_blocks = [block for block in msg.content if isinstance(block, TextBlock)]
@@ -888,11 +907,7 @@ def _create_sdk_child_spans(
                     attributes={
                         "model": getattr(msg, "model", "unknown"),
                         SpanAttributeKey.MESSAGE_FORMAT: "anthropic",
-                        **(
-                            {SpanAttributeKey.SKILL_NAME: active_skill_name}
-                            if active_skill_name
-                            else {}
-                        ),
+                        **_skill_attributes(active_skill_name, active_invocation_id),
                     },
                 )
                 llm_span.set_outputs({
@@ -916,13 +931,15 @@ def _create_sdk_child_spans(
                 #   - success: active_skill_name = commandName (child spans inherit)
                 #   - failure: active_skill_name = None (prior skill must not
                 #     leak into recovery spans)
-                if tool_result and tool_result.command_name and tool_block.name == "Skill":
+                is_skill_anchor = bool(
+                    tool_result and tool_result.command_name and tool_block.name == "Skill"
+                )
+                if is_skill_anchor:
                     span_skill_name = tool_result.command_name
-                    active_skill_name = (
-                        tool_result.command_name if not tool_result.is_error else None
-                    )
+                    span_invocation_id = None  # filled with this span's own id below
                 else:
                     span_skill_name = active_skill_name
+                    span_invocation_id = active_invocation_id
 
                 tool_span = mlflow.start_span_no_context(
                     name=f"tool_{tool_block.name}",
@@ -932,13 +949,18 @@ def _create_sdk_child_spans(
                     attributes={
                         "tool_name": tool_block.name,
                         "tool_id": tool_block.id,
-                        **(
-                            {SpanAttributeKey.SKILL_NAME: span_skill_name}
-                            if span_skill_name
-                            else {}
-                        ),
+                        **_skill_attributes(span_skill_name, span_invocation_id),
                     },
                 )
+                if is_skill_anchor:
+                    invocation_id = tool_span.span_id
+                    tool_span.set_attribute(SpanAttributeKey.SKILL_INVOCATION_ID, invocation_id)
+                    if tool_result.is_error:
+                        active_skill_name = None
+                        active_invocation_id = None
+                    else:
+                        active_skill_name = tool_result.command_name
+                        active_invocation_id = invocation_id
                 tool_span.set_outputs({
                     "result": tool_result.content if tool_result else "No result found"
                 })

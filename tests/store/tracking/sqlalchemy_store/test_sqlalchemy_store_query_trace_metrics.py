@@ -5069,3 +5069,83 @@ def test_query_span_metrics_cost_by_skill_name(store: SqlAlchemyStore):
         "dimensions": {SpanMetricDimensionKey.SPAN_SKILL_NAME: "skill2"},
         "values": {"SUM": 0.02},
     }
+
+
+def _skill_span(
+    name, span_id, skill_name, invocation_id, start_ns, end_ns, parent_id=None, span_type="TOOL"
+):
+    return create_test_span(
+        "trace1",
+        name,
+        span_id=span_id,
+        parent_id=parent_id,
+        span_type=span_type,
+        start_ns=start_ns,
+        end_ns=end_ns,
+        attributes={
+            SpanAttributeKey.SKILL_NAME: skill_name,
+            SpanAttributeKey.SKILL_INVOCATION_ID: invocation_id,
+        },
+    )
+
+
+def test_query_span_metrics_skill_latency_aggregations(store: SqlAlchemyStore):
+    exp_id = store.create_experiment("test_skill_latency_aggregations")
+    store.start_trace(
+        TraceInfo(
+            trace_id="trace1",
+            trace_location=trace_location.TraceLocation.from_experiment_id(exp_id),
+            request_time=get_current_time_millis(),
+            execution_duration=100,
+            state=TraceStatus.OK,
+            tags={TraceTagKey.TRACE_NAME: "test_trace"},
+        )
+    )
+
+    spans = [
+        # Invocation A of skill1: anchor + nested Task + nested LLM. Spans overlap and nest,
+        # so a naive SUM(duration) would give 100+400+200=700ms; wall-clock must be 500ms.
+        _skill_span("skill_tool", 1, "skill1", "invA", 1_000_000_000, 1_100_000_000),
+        _skill_span("tool_Task", 2, "skill1", "invA", 1_100_000_000, 1_500_000_000, parent_id=1),
+        _skill_span(
+            "llm", 3, "skill1", "invA", 1_200_000_000, 1_400_000_000, parent_id=2, span_type="LLM"
+        ),
+        # Invocation B of skill1 (separate run in same trace): 300ms.
+        _skill_span("skill_tool", 4, "skill1", "invB", 2_000_000_000, 2_300_000_000),
+        # Invocation C of skill2: 100ms.
+        _skill_span("skill_tool", 5, "skill2", "invC", 3_000_000_000, 3_100_000_000),
+        # Non-skill span: must be excluded entirely.
+        create_test_span(
+            "trace1",
+            "plain",
+            span_id=6,
+            span_type="LLM",
+            start_ns=4_000_000_000,
+            end_ns=4_500_000_000,
+        ),
+    ]
+    store.log_spans(exp_id, spans)
+
+    result = store.query_trace_metrics(
+        experiment_ids=[exp_id],
+        view_type=MetricViewType.SPANS,
+        metric_name=SpanMetricKey.SKILL_LATENCY,
+        aggregations=[
+            MetricAggregation(aggregation_type=AggregationType.SUM),
+            MetricAggregation(aggregation_type=AggregationType.AVG),
+            MetricAggregation(aggregation_type=AggregationType.MIN),
+            MetricAggregation(aggregation_type=AggregationType.MAX),
+        ],
+        dimensions=[SpanMetricDimensionKey.SPAN_SKILL_NAME],
+    )
+
+    by_skill = {r.dimensions[SpanMetricDimensionKey.SPAN_SKILL_NAME]: r.values for r in result}
+    assert set(by_skill) == {"skill1", "skill2"}
+    # skill1 invocations: [500ms, 300ms] (wall-clock, not the 700ms+300ms naive sum)
+    assert by_skill["skill1"]["SUM"] == pytest.approx(800)
+    assert by_skill["skill1"]["AVG"] == pytest.approx(400)
+    assert by_skill["skill1"]["MIN"] == pytest.approx(300)
+    assert by_skill["skill1"]["MAX"] == pytest.approx(500)
+    # skill2 invocations: [100ms]
+    assert by_skill["skill2"]["SUM"] == pytest.approx(100)
+    assert by_skill["skill2"]["AVG"] == pytest.approx(100)

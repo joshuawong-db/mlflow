@@ -88,6 +88,7 @@ jest.mock('@mlflow/core', () => {
       TOKEN_USAGE: 'mlflow.chat.tokenUsage',
       MESSAGE_FORMAT: 'mlflow.message.format',
       SKILL_NAME: 'mlflow.skill.name',
+      SKILL_INVOCATION_ID: 'mlflow.skill.invocation_id',
     },
     TraceMetadataKey: {
       TRACE_SESSION: 'mlflow.trace.session',
@@ -782,6 +783,151 @@ describe('processTranscript', () => {
       const preBash = findByToolId('pre_bash');
       expect(preBash).toBeDefined();
       expect(preBash?.attributes['mlflow.skill.name']).toBeUndefined();
+    });
+
+    it('stamps the anchor with its own span_id as invocation id and propagates it', async () => {
+      await writeAndProcess(buildHappySkillTranscript());
+
+      const skillTool = findByToolId('skill_tool');
+      const invocationId = skillTool?.attributes['mlflow.skill.invocation_id'];
+      expect(invocationId).toBe(skillTool?.spanId);
+
+      // Pre-skill span has no invocation id.
+      expect(findByToolId('pre_bash')?.attributes['mlflow.skill.invocation_id']).toBeUndefined();
+
+      // Child spans inherit the SAME invocation id.
+      expect(findByToolId('child_bash')?.attributes['mlflow.skill.invocation_id']).toBe(
+        invocationId,
+      );
+      const taggedLlm = getSpansByType('LLM').filter(
+        (s) => s.attributes['mlflow.skill.name'] === 'my-skill',
+      );
+      expect(taggedLlm.length).toBeGreaterThanOrEqual(1);
+      for (const s of taggedLlm) {
+        expect(s.attributes['mlflow.skill.invocation_id']).toBe(invocationId);
+      }
+    });
+
+    function buildSkillWithSubagentTranscript() {
+      return [
+        {
+          type: 'user',
+          message: { role: 'user', content: 'do' },
+          timestamp: '2025-01-15T10:00:00.000Z',
+        },
+        {
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'skill_tool', name: 'Skill', input: { skill: 'my-skill' } },
+            ],
+          },
+          timestamp: '2025-01-15T10:00:01.000Z',
+        },
+        {
+          type: 'user',
+          toolUseResult: { success: true, commandName: 'my-skill' },
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'skill_tool', content: 'launched' }],
+          },
+          timestamp: '2025-01-15T10:00:02.000Z',
+        },
+        {
+          type: 'user',
+          message: { role: 'user', content: [{ type: 'text', text: '<my-skill body>' }] },
+          timestamp: '2025-01-15T10:00:02.500Z',
+        },
+        // Task tool invoked INSIDE the skill body.
+        {
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'task_1',
+                name: 'Task',
+                input: { prompt: 'Search', subagent_type: 'Explore' },
+              },
+            ],
+          },
+          timestamp: '2025-01-15T10:00:03.000Z',
+        },
+        {
+          type: 'progress',
+          parentToolUseID: 'task_1',
+          toolUseID: 'agent_msg_1',
+          timestamp: '2025-01-15T10:00:04.000Z',
+          data: {
+            type: 'agent_progress',
+            agentId: 'sub_1',
+            prompt: 'Search',
+            message: {
+              type: 'assistant',
+              timestamp: '2025-01-15T10:00:04.000Z',
+              message: {
+                role: 'assistant',
+                content: [
+                  { type: 'tool_use', id: 'sub_grep', name: 'Grep', input: { pattern: 'x' } },
+                ],
+              },
+            },
+          },
+        },
+        {
+          type: 'progress',
+          parentToolUseID: 'task_1',
+          toolUseID: 'agent_msg_1',
+          timestamp: '2025-01-15T10:00:05.000Z',
+          data: {
+            type: 'agent_progress',
+            agentId: 'sub_1',
+            prompt: 'Search',
+            message: {
+              type: 'user',
+              message: {
+                role: 'user',
+                content: [{ type: 'tool_result', tool_use_id: 'sub_grep', content: 'found' }],
+              },
+            },
+          },
+        },
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'task_1', content: 'subagent done' }],
+          },
+          timestamp: '2025-01-15T10:00:06.000Z',
+        },
+      ];
+    }
+
+    it('propagates skill scope into subagent wrapper and inner spans', async () => {
+      await writeAndProcess(buildSkillWithSubagentTranscript());
+
+      const skillTool = findByToolId('skill_tool');
+      const invocationId = skillTool?.attributes['mlflow.skill.invocation_id'];
+      expect(invocationId).toBeDefined();
+
+      // The Task tool span (inside the skill) inherits the scope.
+      const taskTool = findByToolId('task_1');
+      expect(taskTool?.attributes['mlflow.skill.name']).toBe('my-skill');
+      expect(taskTool?.attributes['mlflow.skill.invocation_id']).toBe(invocationId);
+
+      // The subagent wrapper AGENT span inherits the scope (previously untagged).
+      const subagent = getSpansByName('subagent_Explore')[0];
+      expect(subagent.attributes['mlflow.skill.name']).toBe('my-skill');
+      expect(subagent.attributes['mlflow.skill.invocation_id']).toBe(invocationId);
+
+      // The subagent's inner tool span inherits the scope.
+      const innerGrep = getSpans().find(
+        (s) => s.spanType === 'TOOL' && s.attributes.tool_id === 'sub_grep',
+      );
+      expect(innerGrep?.attributes['mlflow.skill.name']).toBe('my-skill');
+      expect(innerGrep?.attributes['mlflow.skill.invocation_id']).toBe(invocationId);
     });
 
     it('does NOT propagate when the Skill tool_result is_error=true', async () => {

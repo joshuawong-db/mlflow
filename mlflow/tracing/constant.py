@@ -147,6 +147,11 @@ class SpanAttributeKey:
     # propagated to descendant LLM/TOOL/AGENT spans created within the skill body, so cost and
     # latency can be attributed back to the originating skill.
     SKILL_NAME = "mlflow.skill.name"
+    # Uniquely identifies a single skill invocation. Set to the skill's anchor (Skill tool)
+    # span_id and propagated to every span in that invocation's scope, so two invocations of
+    # the same skill in one trace stay distinct. Enables per-invocation wall-clock
+    # aggregation (MAX(end) - MIN(start)) for the SKILL_LATENCY metric.
+    SKILL_INVOCATION_ID = "mlflow.skill.invocation_id"
 
 
 class TraceExperimentTagKey:
@@ -266,6 +271,10 @@ class SpanMetricKey:
     INPUT_COST = "input_cost"
     OUTPUT_COST = "output_cost"
     TOTAL_COST = "total_cost"
+    # Per-skill-invocation wall-clock time (ms). Aggregated at read time from a per-invocation
+    # subquery (MAX(end) - MIN(start) grouped by skill name + invocation id), then aggregated
+    # across invocations per skill. See sql_trace_metrics_utils._build_skill_invocation_subquery.
+    SKILL_LATENCY = "skill_latency"
 
     @classmethod
     def cost_keys(cls) -> list[str]:
@@ -283,6 +292,11 @@ class SpanMetricDimensionKey:
     SPAN_MODEL_NAME = "span_model_name"
     SPAN_MODEL_PROVIDER = "span_model_provider"
     SPAN_SKILL_NAME = "span_skill_name"
+    # Internal grouping key only: used inside the SKILL_LATENCY per-invocation subquery to
+    # collapse spans into invocations. Must NOT be exposed as a user-facing dimension (it is
+    # high-cardinality), so it is intentionally absent from every SPANS_METRICS_CONFIGS
+    # `dimensions` set.
+    SPAN_SKILL_INVOCATION_ID = "span_skill_invocation_id"
 
 
 class AssessmentMetricKey:

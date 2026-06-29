@@ -44,6 +44,7 @@ interface MockSpan {
   outputs: any;
   attributes: Record<string, any>;
   parentId: string | null;
+  spanId: string;
   ended: boolean;
 }
 
@@ -58,6 +59,7 @@ function resetMocks() {
 jest.mock('@mlflow/core', () => ({
   startSpan: jest.fn((opts: any) => {
     spanCounter += 1;
+    const spanId = `span-${spanCounter}`;
     const span: MockSpan = {
       name: opts.name,
       spanType: opts.spanType ?? 'UNKNOWN',
@@ -65,10 +67,11 @@ jest.mock('@mlflow/core', () => ({
       outputs: {},
       attributes: { ...(opts.attributes ?? {}) },
       parentId: opts.parent ? (opts.parent as { spanId: string }).spanId : null,
+      spanId,
       ended: false,
     };
     const handle: any = {
-      spanId: `span-${spanCounter}`,
+      spanId,
       setAttribute: jest.fn((k: string, v: any) => {
         span.attributes[k] = v;
       }),
@@ -90,6 +93,7 @@ jest.mock('@mlflow/core', () => ({
     TOKEN_USAGE: 'mlflow.chat.tokenUsage',
     MESSAGE_FORMAT: 'mlflow.message.format',
     SKILL_NAME: 'mlflow.skill.name',
+    SKILL_INVOCATION_ID: 'mlflow.skill.invocation_id',
   },
   SpanStatusCode: { OK: 'OK', ERROR: 'ERROR', UNSET: 'UNSET' },
   TraceMetadataKey: {
@@ -207,6 +211,25 @@ describe('LiveTracingContext — skill scope propagation', () => {
     ctx.onUserMessage(toolResultMsg('bash_pre', 'ok'));
 
     expect(findByToolId('bash_pre')?.attributes[SKILL_NAME]).toBeUndefined();
+  });
+
+  it('stamps the anchor with its own span_id as invocation id and propagates it', () => {
+    const INVOCATION_ID = 'mlflow.skill.invocation_id';
+    const ctx = new LiveTracingContext('do the thing');
+    ctx.onAssistantMessage(toolUseMsg('skill_1', 'Skill'));
+    ctx.onUserMessage(toolResultMsg('skill_1', 'launched', { commandName: 'my-skill' }));
+    ctx.onUserMessage(userPromptMsg('<my-skill body>'));
+    ctx.onAssistantMessage(textMsg('Working inside the skill.'));
+    ctx.onAssistantMessage(toolUseMsg('bash_1', 'Bash'));
+
+    const skillSpan = findByToolId('skill_1');
+    const invocationId = skillSpan?.attributes[INVOCATION_ID];
+    expect(invocationId).toBe(skillSpan?.spanId);
+
+    // Child LLM + TOOL spans inherit the SAME invocation id.
+    const taggedLlm = llmSpans().filter((s) => s.attributes[SKILL_NAME] === 'my-skill');
+    expect(taggedLlm[0].attributes[INVOCATION_ID]).toBe(invocationId);
+    expect(findByToolId('bash_1')?.attributes[INVOCATION_ID]).toBe(invocationId);
   });
 });
 

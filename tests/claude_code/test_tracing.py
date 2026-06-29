@@ -1136,6 +1136,85 @@ def test_process_sdk_messages_propagates_skill_to_child_spans():
     assert child_bash[0].get_attribute(SpanAttributeKey.SKILL_NAME) == "my-skill"
 
 
+def test_process_transcript_propagates_invocation_id_to_child_spans(tmp_path):
+    transcript_path = tmp_path / "skill_transcript.jsonl"
+    transcript_path.write_text(
+        "\n".join(json.dumps(e) for e in _skill_transcript_with_child_work()) + "\n"
+    )
+
+    trace = process_transcript(str(transcript_path), "skill-inv-session")
+    spans = list(trace.search_spans())
+
+    # Pre-skill span carries no invocation id.
+    pre_bash = [s for s in spans if s.attributes.get("tool_id") == "pre_bash"]
+    assert pre_bash[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID) is None
+
+    # The skill anchor span carries its own span_id as the invocation id.
+    skill_spans = [s for s in spans if s.attributes.get("tool_id") == "skill_tool"]
+    invocation_id = skill_spans[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID)
+    assert invocation_id == skill_spans[0].span_id
+
+    # Child spans inherit the SAME invocation id.
+    post_skill_llm = [
+        s
+        for s in spans
+        if s.span_type == SpanType.LLM
+        and s.outputs.get("content", [{}])[0].get("text") == "Thinking inside the skill."
+    ]
+    assert post_skill_llm[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID) == invocation_id
+    child_bash = [s for s in spans if s.attributes.get("tool_id") == "child_bash"]
+    assert child_bash[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID) == invocation_id
+
+
+def test_process_sdk_messages_propagates_invocation_id_to_child_spans():
+    messages = [
+        UserMessage(content="Do the thing."),
+        AssistantMessage(
+            content=[ToolUseBlock(id="skill_tool", name="Skill", input={"skill": "my-skill"})],
+            model="claude-sonnet-4-20250514",
+        ),
+        UserMessage(
+            content=[ToolResultBlock(tool_use_id="skill_tool", content="Launching skill")],
+            tool_use_result={"success": True, "commandName": "my-skill"},
+        ),
+        UserMessage(content="<my-skill body>", tool_use_result=None),
+        AssistantMessage(
+            content=[TextBlock(text="Thinking inside the skill.")],
+            model="claude-sonnet-4-20250514",
+        ),
+        AssistantMessage(
+            content=[ToolUseBlock(id="child_bash", name="Bash", input={})],
+            model="claude-sonnet-4-20250514",
+        ),
+        UserMessage(content=[ToolResultBlock(tool_use_id="child_bash", content="done")]),
+        ResultMessage(
+            subtype="success",
+            duration_ms=1000,
+            duration_api_ms=800,
+            is_error=False,
+            num_turns=3,
+            session_id="sdk-skill-inv",
+        ),
+    ]
+
+    trace = process_sdk_messages(messages, "sdk-skill-inv")
+    spans = list(trace.search_spans())
+
+    skill_spans = [s for s in spans if s.attributes.get("tool_id") == "skill_tool"]
+    invocation_id = skill_spans[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID)
+    assert invocation_id == skill_spans[0].span_id
+
+    post_skill_llm = [
+        s
+        for s in spans
+        if s.span_type == SpanType.LLM
+        and "Thinking inside the skill." in str(s.outputs.get("content", ""))
+    ]
+    assert post_skill_llm[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID) == invocation_id
+    child_bash = [s for s in spans if s.attributes.get("tool_id") == "child_bash"]
+    assert child_bash[0].get_attribute(SpanAttributeKey.SKILL_INVOCATION_ID) == invocation_id
+
+
 def _skill_transcript_with_failed_skill() -> list[dict[Any, Any]]:
     """Transcript where a Skill invocation fails (is_error=True). Subsequent
     spans should NOT inherit the skill name — a failed skill never injected
