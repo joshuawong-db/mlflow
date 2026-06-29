@@ -111,6 +111,10 @@
     "defaultMessage": "Persona",
     "description": "Label for the simulation persona metadata in chat session metrics"
   },
+  "+XI2XO": {
+    "defaultMessage": "Per-skill token cost across all invocations",
+    "description": "Subtitle for the skills performance summary section"
+  },
   "+a87Om": {
     "defaultMessage": "{count, plural, one {# question} other {# questions}} selected",
     "description": "Queue settings: questions dropdown selected-count summary"
@@ -4139,10 +4143,6 @@
     "defaultMessage": "Latency",
     "description": "Label for the latency section"
   },
-  "K1XIbm": {
-    "defaultMessage": "Among the highest by avg latency (top quartile)",
-    "description": "Tooltip text on the notable-row InfoIcon for the latency column"
-  },
   "K2IAP7": {
     "defaultMessage": "Success",
     "description": "Column header for success rate"
@@ -6783,10 +6783,6 @@
     "defaultMessage": "Prompt alias deleted",
     "description": "Webhook event label"
   },
-  "XhG1gZ": {
-    "defaultMessage": "Avg latency",
-    "description": "Avg latency column header"
-  },
   "XiGiE1": {
     "defaultMessage": "Workspace",
     "description": "Permissions table column header for the workspace"
@@ -7254,10 +7250,6 @@
   "ZwyDx6": {
     "defaultMessage": "Users",
     "description": "Admin users tab"
-  },
-  "ZyURZj": {
-    "defaultMessage": "Avg latency",
-    "description": "Avg latency aria-label for the range bar"
   },
   "a+uNeX": {
     "defaultMessage": "Next",
@@ -8434,10 +8426,6 @@
   "fhaHvd": {
     "defaultMessage": "There was an unrecoverable error while loading the chart. Please try to reconfigure the chart and/or reload the window.",
     "description": "Description for the error message when the MLflow chart fails to load"
-  },
-  "fi1W1O": {
-    "defaultMessage": "Per-skill latency and token cost across all invocations",
-    "description": "Subtitle for the skills performance summary section"
   },
   "fjBt8M": {
     "defaultMessage": "Feedback scores logged to the trace",
