@@ -171,6 +171,8 @@ export enum SpanMetricKey {
   OUTPUT_COST = 'output_cost',
   /** Total cost in USD */
   TOTAL_COST = 'total_cost',
+  /** Per-skill-invocation wall-clock latency in milliseconds */
+  SKILL_LATENCY = 'skill_latency',
 }
 
 /**

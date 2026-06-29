@@ -15,7 +15,7 @@ import {
 } from '@databricks/design-system';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { formatCostUSD } from '@databricks/web-shared/model-trace-explorer';
-import { formatCount, useChartColors } from '../utils/chartUtils';
+import { formatCount, formatLatency, useChartColors } from '../utils/chartUtils';
 import type { SkillPerformanceData } from '../hooks/useSkillPerformanceSummaryData';
 import { useSkillPerformanceSummaryData } from '../hooks/useSkillPerformanceSummaryData';
 import {
@@ -26,11 +26,12 @@ import {
 } from './OverviewChartComponents';
 import { RangeBarMetricCell, percentile, useSortState } from './SummaryTableComponents';
 
-type SortKey = 'skillName' | 'totalCalls' | 'avgCost' | 'totalSpend';
+type SortKey = 'skillName' | 'totalCalls' | 'avgCost' | 'totalSpend' | 'totalTimeMs' | 'avgTimeMs';
 
-// Last column = Total spend (avgCost × totalCalls) — the cumulative dollars
-// burned by the skill, the most actionable per-skill business value.
-const ROW_GRID = 'minmax(140px, 1.4fr) 70px minmax(0, 2fr) minmax(0, 1fr)';
+// Columns: Skill | Calls | Avg cost (range bar) | Total spend | Total time | Avg/call (range
+// bar). Avg cost and Avg/call use the same min–avg–max range bar; Total spend and Total time
+// are plain cumulative numbers.
+const ROW_GRID = 'minmax(140px, 1.4fr) 70px minmax(0, 2fr) minmax(0, 1fr) 90px minmax(0, 2fr)';
 
 interface EnrichedRow extends SkillPerformanceData {
   totalSpend: number;
@@ -161,6 +162,7 @@ export const SkillPerformanceSummary: React.FC = () => {
   }, [enriched, selectedSkills, selectedSkillsSet, sortColumn, sortDirection]);
 
   const globalMaxCost = useMemo(() => Math.max(...skillsData.map((s) => s.maxCost), 0), [skillsData]);
+  const globalMaxTime = useMemo(() => Math.max(...skillsData.map((s) => s.maxTimeMs), 0), [skillsData]);
 
   // Top-quartile thresholds — drive the InfoIcon "notable" marker in the
   // range-bar layout. Computed across the full dataset (not the filtered
@@ -169,6 +171,14 @@ export const SkillPerformanceSummary: React.FC = () => {
     () =>
       percentile(
         skillsData.map((s) => s.avgCost),
+        0.75,
+      ),
+    [skillsData],
+  );
+  const p75Time = useMemo(
+    () =>
+      percentile(
+        skillsData.map((s) => s.avgTimeMs),
         0.75,
       ),
     [skillsData],
@@ -209,7 +219,7 @@ export const SkillPerformanceSummary: React.FC = () => {
         }
         subtitle={
           <FormattedMessage
-            defaultMessage="Per-skill token cost across all invocations"
+            defaultMessage="Per-skill time and token cost across all invocations"
             description="Subtitle for the skills performance summary section"
           />
         }
@@ -312,6 +322,12 @@ export const SkillPerformanceSummary: React.FC = () => {
         <ColHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} column="totalSpend">
           <FormattedMessage defaultMessage="Total spend" description="Total spend column header" />
         </ColHeader>
+        <ColHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} column="totalTimeMs">
+          <FormattedMessage defaultMessage="Total time" description="Total skill time column header" />
+        </ColHeader>
+        <ColHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} column="avgTimeMs">
+          <FormattedMessage defaultMessage="Avg / call" description="Average time per invocation column header" />
+        </ColHeader>
       </div>
 
       <div css={{ maxHeight: 360, overflowY: 'auto' }}>
@@ -383,6 +399,25 @@ export const SkillPerformanceSummary: React.FC = () => {
               ) : (
                 <PlainNumber value={formatCostUSD(s.totalSpend)} />
               )}
+              <PlainNumber value={formatLatency(s.totalTimeMs)} />
+              <RangeBarMetricCell
+                avg={s.avgTimeMs}
+                min={s.minTimeMs}
+                max={s.maxTimeMs}
+                globalMax={globalMaxTime}
+                color={color}
+                format={formatLatency}
+                isNotable={s.avgTimeMs >= p75Time && p75Time > 0}
+                notableReason={intl.formatMessage({
+                  defaultMessage: 'Among the slowest by avg time per call (top quartile)',
+                  description: 'Tooltip text on the notable-row InfoIcon for the avg time column',
+                })}
+                metricLabel={intl.formatMessage({
+                  defaultMessage: 'Avg time per call',
+                  description: 'Avg time per call aria-label for the range bar',
+                })}
+                componentId="mlflow.charts.skill_performance_summary.time"
+              />
             </div>
           );
         })}

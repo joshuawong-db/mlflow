@@ -21,12 +21,26 @@ const MIN_MAX_AGGS = [
   { aggregation_type: AggregationType.PERCENTILE, percentile_value: 100 },
 ];
 
+// Per-invocation wall-clock time, aggregated across invocations per skill. Unlike *_COST,
+// the skill_latency metric supports real SUM/AVG/MIN/MAX — SUM drives "Total time" and
+// MIN/AVG/MAX drive the per-call range bar.
+const LATENCY_AGGS = [
+  { aggregation_type: AggregationType.SUM },
+  { aggregation_type: AggregationType.AVG },
+  { aggregation_type: AggregationType.MIN },
+  { aggregation_type: AggregationType.MAX },
+];
+
 export interface SkillPerformanceData {
   skillName: string;
   totalCalls: number;
   avgCost: number;
   minCost: number;
   maxCost: number;
+  totalTimeMs: number;
+  avgTimeMs: number;
+  minTimeMs: number;
+  maxTimeMs: number;
 }
 
 export interface UseSkillPerformanceSummaryDataResult {
@@ -42,11 +56,27 @@ interface AggregatedMetric {
   max: number;
 }
 
+interface LatencyMetric {
+  total: number;
+  avg: number;
+  min: number;
+  max: number;
+}
+
 function readAvgMinMax(values: Record<string, number> | undefined): AggregatedMetric {
   return {
     avg: values?.[AggregationType.AVG] ?? 0,
     min: values?.[PERCENTILE_MIN_KEY] ?? 0,
     max: values?.[PERCENTILE_MAX_KEY] ?? 0,
+  };
+}
+
+function readLatency(values: Record<string, number> | undefined): LatencyMetric {
+  return {
+    total: values?.[AggregationType.SUM] ?? 0,
+    avg: values?.[AggregationType.AVG] ?? 0,
+    min: values?.[AggregationType.MIN] ?? 0,
+    max: values?.[AggregationType.MAX] ?? 0,
   };
 }
 
@@ -85,9 +115,25 @@ export function useSkillPerformanceSummaryData({
     enabled,
   });
 
+  const {
+    data: latencyData,
+    isLoading: isLoadingLatency,
+    error: latencyError,
+  } = useTraceMetricsQuery({
+    experimentIds,
+    startTimeMs,
+    endTimeMs,
+    viewType: MetricViewType.SPANS,
+    metricName: SpanMetricKey.SKILL_LATENCY,
+    aggregations: LATENCY_AGGS,
+    dimensions: [SpanDimensionKey.SKILL_NAME],
+    enabled,
+  });
+
   const skillsData = useMemo(() => {
     const countMap = new Map<string, number>();
     const costMap = new Map<string, AggregatedMetric>();
+    const latencyMap = new Map<string, LatencyMetric>();
 
     if (countData?.data_points) {
       for (const dp of countData.data_points) {
@@ -106,26 +152,39 @@ export function useSkillPerformanceSummaryData({
       }
     }
 
+    if (latencyData?.data_points) {
+      for (const dp of latencyData.data_points) {
+        const skillName = dp.dimensions?.[SpanDimensionKey.SKILL_NAME];
+        if (!skillName) continue;
+        latencyMap.set(skillName, readLatency(dp.values));
+      }
+    }
+
     const result: SkillPerformanceData[] = [];
     for (const [skillName, totalCalls] of countMap.entries()) {
       const cost = costMap.get(skillName);
+      const latency = latencyMap.get(skillName);
       result.push({
         skillName,
         totalCalls,
         avgCost: cost?.avg ?? 0,
         minCost: cost?.min ?? 0,
         maxCost: cost?.max ?? 0,
+        totalTimeMs: latency?.total ?? 0,
+        avgTimeMs: latency?.avg ?? 0,
+        minTimeMs: latency?.min ?? 0,
+        maxTimeMs: latency?.max ?? 0,
       });
     }
 
     result.sort((a, b) => b.totalCalls - a.totalCalls);
     return result;
-  }, [countData?.data_points, costData?.data_points]);
+  }, [countData?.data_points, costData?.data_points, latencyData?.data_points]);
 
   return {
     skillsData,
-    isLoading: isLoadingCounts || isLoadingCost,
-    error: countsError || costError,
+    isLoading: isLoadingCounts || isLoadingCost || isLoadingLatency,
+    error: countsError || costError || latencyError,
     hasData: skillsData.length > 0,
   };
 }

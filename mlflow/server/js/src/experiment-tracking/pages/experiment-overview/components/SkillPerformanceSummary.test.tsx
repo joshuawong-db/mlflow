@@ -31,6 +31,17 @@ const createCostDataPoint = (skillName: string, avg: number, min = 0, max = 0) =
   values: { [AggregationType.AVG]: avg, 'P0.0': min, 'P100.0': max },
 });
 
+const createLatencyDataPoint = (skillName: string, sum: number, avg: number, min = 0, max = 0) => ({
+  metric_name: SpanMetricKey.SKILL_LATENCY,
+  dimensions: { [SpanDimensionKey.SKILL_NAME]: skillName },
+  values: {
+    [AggregationType.SUM]: sum,
+    [AggregationType.AVG]: avg,
+    [AggregationType.MIN]: min,
+    [AggregationType.MAX]: max,
+  },
+});
+
 describe('SkillPerformanceSummary', () => {
   const testExperimentId = 'test-experiment-123';
   const startTimeMs = new Date('2025-12-22T10:00:00Z').getTime();
@@ -63,7 +74,7 @@ describe('SkillPerformanceSummary', () => {
     );
   };
 
-  const setupHandlers = (countDataPoints: any[], costDataPoints: any[] = []) => {
+  const setupHandlers = (countDataPoints: any[], costDataPoints: any[] = [], latencyDataPoints: any[] = []) => {
     server.use(
       rest.post(getAjaxUrl('ajax-api/3.0/mlflow/traces/metrics'), async (req, res, ctx) => {
         const body = await req.json();
@@ -74,6 +85,9 @@ describe('SkillPerformanceSummary', () => {
         }
         if (metricName === SpanMetricKey.TOTAL_COST || metricNames.includes(SpanMetricKey.TOTAL_COST)) {
           return res(ctx.json({ data_points: costDataPoints }));
+        }
+        if (metricName === SpanMetricKey.SKILL_LATENCY || metricNames.includes(SpanMetricKey.SKILL_LATENCY)) {
+          return res(ctx.json({ data_points: latencyDataPoints }));
         }
         return res(ctx.json({ data_points: [] }));
       }),
@@ -150,7 +164,7 @@ describe('SkillPerformanceSummary', () => {
       });
     });
 
-    it('should render the four sortable column headers', async () => {
+    it('should render the sortable column headers', async () => {
       setupHandlers(mockCountData, mockCostData);
 
       renderComponent();
@@ -162,6 +176,21 @@ describe('SkillPerformanceSummary', () => {
       expect(screen.getByText('Calls')).toBeInTheDocument();
       expect(screen.getByText('Avg cost')).toBeInTheDocument();
       expect(screen.getByText('Total spend')).toBeInTheDocument();
+      expect(screen.getByText('Total time')).toBeInTheDocument();
+      expect(screen.getByText('Avg / call')).toBeInTheDocument();
+    });
+
+    it('should render formatted per-skill time values', async () => {
+      setupHandlers(mockCountData, mockCostData, [createLatencyDataPoint('alpha-skill', 5000, 1250, 900, 2000)]);
+
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByText('alpha-skill')).toBeInTheDocument();
+      });
+      // 5000ms → "5.00s" (Total time), 1250ms → "1.25s" (Avg / call range-bar headline)
+      expect(screen.getByText('5.00s')).toBeInTheDocument();
+      expect(screen.getByText('1.25s')).toBeInTheDocument();
     });
 
     it('should render every skill name', async () => {
@@ -200,6 +229,8 @@ describe('SkillPerformanceSummary', () => {
       expect(screen.getByRole('columnheader', { name: 'Calls' })).toBeInTheDocument();
       expect(screen.getByRole('columnheader', { name: 'Avg cost' })).toBeInTheDocument();
       expect(screen.getByRole('columnheader', { name: 'Total spend' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Total time' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Avg / call' })).toBeInTheDocument();
     });
   });
 

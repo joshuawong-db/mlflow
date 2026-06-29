@@ -29,6 +29,17 @@ const createCostDataPoint = (skillName: string, avg: number, min = 0, max = 0) =
   values: { [AggregationType.AVG]: avg, 'P0.0': min, 'P100.0': max },
 });
 
+const createLatencyDataPoint = (skillName: string, sum: number, avg: number, min = 0, max = 0) => ({
+  metric_name: SpanMetricKey.SKILL_LATENCY,
+  dimensions: { [SpanDimensionKey.SKILL_NAME]: skillName },
+  values: {
+    [AggregationType.SUM]: sum,
+    [AggregationType.AVG]: avg,
+    [AggregationType.MIN]: min,
+    [AggregationType.MAX]: max,
+  },
+});
+
 describe('useSkillPerformanceSummaryData', () => {
   const testExperimentId = 'test-experiment-123';
   const startTimeMs = new Date('2025-12-22T10:00:00Z').getTime();
@@ -57,7 +68,7 @@ describe('useSkillPerformanceSummaryData', () => {
       );
     };
 
-  const setupHandlers = (countDataPoints: any[], costDataPoints: any[] = []) => {
+  const setupHandlers = (countDataPoints: any[], costDataPoints: any[] = [], latencyDataPoints: any[] = []) => {
     server.use(
       rest.post(getAjaxUrl('ajax-api/3.0/mlflow/traces/metrics'), async (req, res, ctx) => {
         const body = await req.json();
@@ -68,6 +79,9 @@ describe('useSkillPerformanceSummaryData', () => {
         }
         if (metricName === SpanMetricKey.TOTAL_COST || metricNames.includes(SpanMetricKey.TOTAL_COST)) {
           return res(ctx.json({ data_points: costDataPoints }));
+        }
+        if (metricName === SpanMetricKey.SKILL_LATENCY || metricNames.includes(SpanMetricKey.SKILL_LATENCY)) {
+          return res(ctx.json({ data_points: latencyDataPoints }));
         }
         return res(ctx.json({ data_points: [] }));
       }),
@@ -144,6 +158,42 @@ describe('useSkillPerformanceSummaryData', () => {
       expect(reviewPr?.avgCost).toBeCloseTo(0.12);
       expect(reviewPr?.minCost).toBeCloseTo(0.05);
       expect(reviewPr?.maxCost).toBeCloseTo(0.4);
+    });
+
+    const mockLatencyData = [
+      createLatencyDataPoint('review-pr', 800, 400, 300, 520),
+      createLatencyDataPoint('analyze-trace', 300, 150, 100, 220),
+    ];
+
+    it('should return total, avg, min, and max time per skill', async () => {
+      setupHandlers(mockCountData, mockCostData, mockLatencyData);
+
+      const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const reviewPr = result.current.skillsData.find((s) => s.skillName === 'review-pr');
+      expect(reviewPr?.totalTimeMs).toBeCloseTo(800);
+      expect(reviewPr?.avgTimeMs).toBeCloseTo(400);
+      expect(reviewPr?.minTimeMs).toBeCloseTo(300);
+      expect(reviewPr?.maxTimeMs).toBeCloseTo(520);
+    });
+
+    it('should default time metrics to 0 when latency data is missing', async () => {
+      setupHandlers(mockCountData, mockCostData, []);
+
+      const { result } = renderHook(() => useSkillPerformanceSummaryData(), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const reviewPr = result.current.skillsData.find((s) => s.skillName === 'review-pr');
+      expect(reviewPr?.totalTimeMs).toBe(0);
+      expect(reviewPr?.avgTimeMs).toBe(0);
+      expect(reviewPr?.maxTimeMs).toBe(0);
     });
 
     it('should include skills with count data even when cost is missing', async () => {
