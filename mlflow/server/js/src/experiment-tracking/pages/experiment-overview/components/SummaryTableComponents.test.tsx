@@ -89,7 +89,7 @@ describe('SummaryTableComponents', () => {
         </DesignSystemProvider>,
       );
 
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(screen.getByRole('columnheader'));
 
       expect(onSort).toHaveBeenCalledWith('test');
     });
@@ -104,7 +104,7 @@ describe('SummaryTableComponents', () => {
         </DesignSystemProvider>,
       );
 
-      const button = screen.getByRole('button');
+      const button = screen.getByRole('columnheader');
       button.focus();
       await userEvent.keyboard('{Enter}');
 

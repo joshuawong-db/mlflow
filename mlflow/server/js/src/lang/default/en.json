@@ -111,6 +111,10 @@
     "defaultMessage": "Persona",
     "description": "Label for the simulation persona metadata in chat session metrics"
   },
+  "+XI2XO": {
+    "defaultMessage": "Per-skill token cost across all invocations",
+    "description": "Subtitle for the skills performance summary section"
+  },
   "+a87Om": {
     "defaultMessage": "{count, plural, one {# question} other {# questions}} selected",
     "description": "Queue settings: questions dropdown selected-count summary"
@@ -463,6 +467,10 @@
     "defaultMessage": "Y-axis:",
     "description": "Label text for y-axis in contour plot comparison in MLflow"
   },
+  "0FgHAS": {
+    "defaultMessage": "Among the highest by avg latency (top quartile)",
+    "description": "Tooltip text on the notable-row InfoIcon for the tool latency column"
+  },
   "0HIfuE": {
     "defaultMessage": "Outputs of the trace, derived from the root span's outputs",
     "description": "Tooltip description for the Response column in the traces table"
@@ -762,6 +770,10 @@
   "1oofcq": {
     "defaultMessage": "Show less",
     "description": "Link that collapses an expanded list when clicked"
+  },
+  "1uXZf9": {
+    "defaultMessage": "Skill ({visible} of {total})",
+    "description": "Skill column header showing visible/total count"
   },
   "1uyr/n": {
     "defaultMessage": "View {count} {count, plural, one {issue} other {issues}}",
@@ -1202,6 +1214,10 @@
   "4HKr3y": {
     "defaultMessage": "Attributes",
     "description": "Header for attribute columns in the evaluation runs table column configuration"
+  },
+  "4HUNTR": {
+    "defaultMessage": "Skills Tracked",
+    "description": "Label for total skills tracked"
   },
   "4HbEVz": {
     "defaultMessage": "You need to select a served model endpoint using dropdown first",
@@ -1711,6 +1727,10 @@
     "defaultMessage": "Off",
     "description": "Runs charts > line chart > ignore outliers > off setting label"
   },
+  "741lsw": {
+    "defaultMessage": "Pricing unavailable — the model used by this skill isn't in the pricing catalog.",
+    "description": "Tooltip explaining the em-dash placeholder in the cost column"
+  },
   "79dD5F": {
     "defaultMessage": "There was an error submitting your note.",
     "description": "Error message text when saving an editable note in MLflow"
@@ -1779,6 +1799,10 @@
     "defaultMessage": "Create a custom judge function using the {decorator} decorator. All parameters ({inputs}, {outputs}, {expectations}, {trace}) are optional — include only the ones your logic needs. {link}",
     "description": "Step 1 description for defining judge function"
   },
+  "7P2EGF": {
+    "defaultMessage": "Skills are a subset of Tool calls — every skill invocation is also a tool call.",
+    "description": "Tooltip clarifying that skills are a marked subset of tool calls"
+  },
   "7PCvDy": {
     "defaultMessage": "OK",
     "description": "Confirmation button text on the model version stage transition request/approval modal"
@@ -1838,6 +1862,10 @@
   "7kUi8J": {
     "defaultMessage": "Duration:",
     "description": "Row title for the duration of runs on the experiment compare runs page"
+  },
+  "7lPAry": {
+    "defaultMessage": "Skills Performance",
+    "description": "Title for the skills performance summary section"
   },
   "7lROwq": {
     "defaultMessage": "Models",
@@ -2583,6 +2611,10 @@
     "defaultMessage": "Completed ({count})",
     "description": "Review queue status filter: completed"
   },
+  "BJToPq": {
+    "defaultMessage": "{count} skills selected",
+    "description": "Skill performance summary > filter trigger > N selected"
+  },
   "BMUd0e": {
     "defaultMessage": "Create evaluation datasets in order to iteratively evaluate and improve your app. For example, build a dataset from production traces with negative feedback. {learnMoreLink}",
     "description": "Description for a quickstart guide on MLflow evaluation datasets"
@@ -2794,6 +2826,10 @@
   "CDOfWP": {
     "defaultMessage": "System Metrics",
     "description": "Experiment tracking > runs charts > cards > RunsChartsDifferenceChartCard > system metrics heading"
+  },
+  "CEVPBQ": {
+    "defaultMessage": "No skills match the current filter.",
+    "description": "Empty state for the skill performance list when filter excludes all skills"
   },
   "CKwhUr": {
     "defaultMessage": "Move to Todo",
@@ -3459,6 +3495,10 @@
     "defaultMessage": "Prompt Template",
     "description": "Experiment page > new run modal > prompt examples > prompt template title"
   },
+  "GHgyto": {
+    "defaultMessage": "Biggest Spending Skill",
+    "description": "Label for the skill with the highest total spend"
+  },
   "GJWVBA": {
     "defaultMessage": "Inputs",
     "description": "Table subtitle for schema inputs in the model comparison page"
@@ -3534,6 +3574,10 @@
   "Gs+blV": {
     "defaultMessage": "Last modified",
     "description": "Column title for last modified timestamp for a model in the registered model page"
+  },
+  "GwH2vC": {
+    "defaultMessage": "Avg cost",
+    "description": "Avg cost aria-label for the range bar"
   },
   "GyGCX5": {
     "defaultMessage": "Create experiment",
@@ -3838,6 +3882,10 @@
   "IV37H1": {
     "defaultMessage": "Description update failed",
     "description": "Partial save status message when experiment description update fails"
+  },
+  "IVoddV": {
+    "defaultMessage": "Total Skill Spend",
+    "description": "Label for cumulative skill cost"
   },
   "IWIjkw": {
     "defaultMessage": "Copy link to queue",
@@ -4710,6 +4758,10 @@
   "NN0ScV": {
     "defaultMessage": "Comparing {numRuns} Runs from 1 Experiment",
     "description": "Breadcrumb title for compare runs page with single experiment"
+  },
+  "NOpfP3": {
+    "defaultMessage": "All skills ({count})",
+    "description": "Skill filter trigger placeholder showing total skill count"
   },
   "NPlcrl": {
     "defaultMessage": "Clear filters",
@@ -5814,6 +5866,10 @@
   "T1sd79": {
     "defaultMessage": "Go to model",
     "description": "Run page > Header > Register model dropdown > Go to model button label"
+  },
+  "T2UxYf": {
+    "defaultMessage": "Avg cost",
+    "description": "Avg cost column header"
   },
   "T3Ew34": {
     "defaultMessage": "Used by",
@@ -6967,6 +7023,10 @@
     "defaultMessage": "No responses or targets logged",
     "description": "Evaluation review > Response section > no values"
   },
+  "YwkP1r": {
+    "defaultMessage": "Skills",
+    "description": "Section header above the skill statistics callouts"
+  },
   "Ywtqwx": {
     "defaultMessage": "Delete queue",
     "description": "Review queue header: delete-queue menu item"
@@ -7447,6 +7507,10 @@
     "defaultMessage": "Add \"{label}\"",
     "description": "Evaluation review > assessments > add new custom value element"
   },
+  "bEFbIX": {
+    "defaultMessage": "Among the highest by avg cost (top quartile)",
+    "description": "Tooltip text on the notable-row InfoIcon for the cost column"
+  },
   "bGHzui": {
     "defaultMessage": "Custom judge",
     "description": "Sub-label for a custom LLM-as-a-judge row in the run evaluation modal"
@@ -7591,6 +7655,10 @@
     "defaultMessage": "A tag value is required",
     "description": "Key-value tag editor modal > Value required error message"
   },
+  "bw/ol1": {
+    "defaultMessage": "Skill Invocations",
+    "description": "Label for total skill invocations"
+  },
   "by+x8N": {
     "defaultMessage": "Type",
     "description": "Run page > Overview > Experiment ID section label"
@@ -7618,6 +7686,10 @@
   "c0wdTy": {
     "defaultMessage": "Delete dataset",
     "description": "Overflow-menu item to delete the current V2 evaluation dataset from its detail page"
+  },
+  "c1LE4y": {
+    "defaultMessage": "No matching skills",
+    "description": "Empty state in the skill filter dropdown"
   },
   "c1it6D": {
     "defaultMessage": "Select your theme preference between light and dark.",
@@ -7850,6 +7922,10 @@
   "d6Mx+/": {
     "defaultMessage": "Current password is required",
     "description": "Validation error when the current-password field is empty"
+  },
+  "d6gGgd": {
+    "defaultMessage": "Calls",
+    "description": "Calls column header"
   },
   "d72zLS": {
     "defaultMessage": "Toggle session grouping",
@@ -9367,6 +9443,10 @@
     "defaultMessage": "Trace Archival Retention",
     "description": "Label for workspace trace archival retention field"
   },
+  "kFw8RC": {
+    "defaultMessage": "Tools",
+    "description": "Section header above the tool statistics callouts"
+  },
   "kHDQiE": {
     "defaultMessage": "Analyze the '{{ conversation }}' and determine if the agent maintains a polite and professional tone throughout all interactions.{br}Rate as 'consistently_polite', 'mostly_polite', or 'impolite'.",
     "description": "Placeholder text for session level instructions textarea. {br} is a newline."
@@ -9430,6 +9510,10 @@
   "kWUhea": {
     "defaultMessage": "Params",
     "description": "Label for 'params' option group in the compare runs chart configure modal"
+  },
+  "kYfEnq": {
+    "defaultMessage": "Avg latency",
+    "description": "Avg latency aria-label for the tool performance range bar"
   },
   "kZaBMS": {
     "defaultMessage": "trace.status = 'OK'",
@@ -10743,6 +10827,10 @@
     "defaultMessage": "Detects harmful, offensive, or toxic content in requests and responses.",
     "description": "Safety guardrail type description"
   },
+  "rBw1O0": {
+    "defaultMessage": "All skills",
+    "description": "Skill filter dropdown label"
+  },
   "rBydei": {
     "defaultMessage": "The retrieval-relevance LLM judge determines whether the chunks returned by the retriever are relevant to the input request. Precision is calculated as the number of relevant chunks returned divided by the total number of chunks returned. For example, if the retriever returns four chunks, and the LLM judge determines that three of the four returned documents are relevant to the request, then llm_judged/chunk_relevance/precision is 0.75.",
     "description": "Evaluation results > known type of evaluation result assessment > retrieval relevance judge."
@@ -11723,6 +11811,10 @@
     "defaultMessage": "Get started with AI Gateway",
     "description": "Gateway > Endpoints > Quick start title"
   },
+  "wYZNTo": {
+    "defaultMessage": "Skill metrics require Unity Catalog trace storage.",
+    "description": "Message shown on Skills tab when experiment uses MySQL trace storage"
+  },
   "wZBta0": {
     "defaultMessage": "Tags",
     "description": "Column selector label for the tags column"
@@ -11822,6 +11914,10 @@
   "x0K27S": {
     "defaultMessage": "Nothing to compare!",
     "description": "Header displayed in the metrics and params compare plot when no values are selected"
+  },
+  "x16OTr": {
+    "defaultMessage": "Total spend",
+    "description": "Total spend column header"
   },
   "x1Lbmd": {
     "defaultMessage": "{gpuCount, plural, =0 {} one {# GPU} other {# GPUs}} selected",
@@ -12038,6 +12134,10 @@
   "y56Vz9": {
     "defaultMessage": "In progress",
     "description": "Experiment page > traces table > status label > in progress"
+  },
+  "y67gX3": {
+    "defaultMessage": "Skills",
+    "description": "Label for the skills tab in the experiment overview page"
   },
   "y6KMoc": {
     "defaultMessage": "Run the judge on the selected group of {isTraces, select, true {traces} other {sessions}}",

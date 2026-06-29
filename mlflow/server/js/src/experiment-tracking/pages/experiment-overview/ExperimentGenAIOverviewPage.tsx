@@ -27,10 +27,12 @@ import { LazyTraceCostBreakdownChart } from './components/LazyTraceCostBreakdown
 import { LazyTraceCostOverTimeChart } from './components/LazyTraceCostOverTimeChart';
 import { AssessmentChartsSection } from './components/AssessmentChartsSection';
 import { ToolCallStatistics } from './components/ToolCallStatistics';
+import { SkillCallStatistics } from './components/SkillCallStatistics';
 import { ToolCallChartsSection } from './components/ToolCallChartsSection';
 import { LazyToolUsageChart } from './components/LazyToolUsageChart';
 import { LazyToolLatencyChart } from './components/LazyToolLatencyChart';
 import { LazyToolPerformanceSummary } from './components/LazyToolPerformanceSummary';
+import { LazySkillPerformanceSummary } from './components/LazySkillPerformanceSummary';
 import { TabContentContainer, ChartGrid } from './components/OverviewLayoutComponents';
 import { TimeUnitSelector } from './components/TimeUnitSelector';
 import type { TimeUnit } from './utils/timeUtils';
@@ -38,6 +40,7 @@ import { TIME_UNIT_SECONDS, calculateDefaultTimeUnit, isTimeUnitValid } from './
 import { generateTimeBuckets } from './utils/chartUtils';
 import { OverviewChartProvider } from './OverviewChartContext';
 import { useOverviewTab, OverviewTab } from './hooks/useOverviewTab';
+import { useSkillPerformanceSummaryData } from './hooks/useSkillPerformanceSummaryData';
 import { MetricsFilter } from '../../../common/components/MetricsFilter';
 import {
   translateToMetricsFilters,
@@ -49,6 +52,23 @@ import {
 
 const DEMO_START_TIME_TAG = 'mlflow.demo.start_time_ms';
 const DEMO_END_TIME_TAG = 'mlflow.demo.end_time_ms';
+
+// Skills are optional — hide the tab trigger entirely when no skill spans exist.
+// Must live inside OverviewChartProvider so the data hook has experiment context.
+const SkillsTabTrigger = () => {
+  const { hasData, isLoading } = useSkillPerformanceSummaryData();
+  if (!isLoading && !hasData) {
+    return null;
+  }
+  return (
+    <Tabs.Trigger value={OverviewTab.Skills}>
+      <FormattedMessage
+        defaultMessage="Skills"
+        description="Label for the skills tab in the experiment overview page"
+      />
+    </Tabs.Trigger>
+  );
+};
 
 const ExperimentGenAIOverviewPageImpl = () => {
   const intl = useIntl();
@@ -229,85 +249,86 @@ const ExperimentGenAIOverviewPageImpl = () => {
           }
         />
       )}
-      <Tabs.Root
-        componentId="mlflow.experiment.overview.tabs"
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as OverviewTab)}
-        valueHasNoPii
-        css={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+      <OverviewChartProvider
+        experimentIds={[experimentId]}
+        startTimeMs={startTimeMs}
+        endTimeMs={endTimeMs}
+        timeIntervalSeconds={timeIntervalSeconds}
+        timeBuckets={timeBuckets}
+        filters={chartFilters}
+        tracesNavigationFilters={tracesNavigationFilters}
       >
-        <Tabs.List>
-          <Tabs.Trigger value={OverviewTab.Usage}>
-            <FormattedMessage
-              defaultMessage="Usage"
-              description="Label for the usage tab in the experiment overview page"
-            />
-          </Tabs.Trigger>
-          <Tabs.Trigger value={OverviewTab.Quality}>
-            <FormattedMessage
-              defaultMessage="Quality"
-              description="Label for the quality tab in the experiment overview page"
-            />
-          </Tabs.Trigger>
-          <Tabs.Trigger value={OverviewTab.ToolCalls}>
-            <FormattedMessage
-              defaultMessage="Tool calls"
-              description="Label for the tool calls tab in the experiment overview page"
-            />
-          </Tabs.Trigger>
-        </Tabs.List>
-
-        {/* Control bar with time range */}
-        <div
-          css={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-          }}
+        <Tabs.Root
+          componentId="mlflow.experiment.overview.tabs"
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as OverviewTab)}
+          valueHasNoPii
+          css={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
         >
-          {activeTab === OverviewTab.Usage && (
-            <MetricsFilter
-              filters={metricFilters}
-              setFilters={setMetricFilters}
-              columnOptions={metricsFilterColumnOptions}
-            />
-          )}
-
-          {/* Time unit selector for chart grouping */}
-          <TimeUnitSelector
-            value={effectiveTimeUnit}
-            onChange={setSelectedTimeUnit}
-            startTimeMs={startTimeMs}
-            endTimeMs={endTimeMs}
-            allowClear={selectedTimeUnit !== null && selectedTimeUnit !== defaultTimeUnit}
-            onClear={() => setSelectedTimeUnit(null)}
-          />
-
-          {/*
-           * Time range selector - exclude 'ALL' since charts require start_time_ms and end_time_ms
-           * TODO: remove this once this is supported in backend
-           */}
-          <TracesV3DateSelector excludeOptions={['ALL']} componentId="mlflow.experiment.overview" />
-
-          {shouldEnableIssueDetection() && (
-            <div css={{ marginLeft: 'auto' }}>
-              <DetectIssuesButton
-                componentId="mlflow.experiment.overview.detect-issues-button"
-                onClick={() => setIsIssueDetectionModalOpen(true)}
+          <Tabs.List>
+            <Tabs.Trigger value={OverviewTab.Usage}>
+              <FormattedMessage
+                defaultMessage="Usage"
+                description="Label for the usage tab in the experiment overview page"
               />
-            </div>
-          )}
-        </div>
+            </Tabs.Trigger>
+            <Tabs.Trigger value={OverviewTab.Quality}>
+              <FormattedMessage
+                defaultMessage="Quality"
+                description="Label for the quality tab in the experiment overview page"
+              />
+            </Tabs.Trigger>
+            <Tabs.Trigger value={OverviewTab.ToolCalls}>
+              <FormattedMessage
+                defaultMessage="Tool calls"
+                description="Label for the tool calls tab in the experiment overview page"
+              />
+            </Tabs.Trigger>
+            <SkillsTabTrigger />
+          </Tabs.List>
 
-        <OverviewChartProvider
-          experimentIds={[experimentId]}
-          startTimeMs={startTimeMs}
-          endTimeMs={endTimeMs}
-          timeIntervalSeconds={timeIntervalSeconds}
-          timeBuckets={timeBuckets}
-          filters={chartFilters}
-          tracesNavigationFilters={tracesNavigationFilters}
-        >
+          {/* Control bar with time range */}
+          <div
+            css={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.sm,
+            }}
+          >
+            {activeTab === OverviewTab.Usage && (
+              <MetricsFilter
+                filters={metricFilters}
+                setFilters={setMetricFilters}
+                columnOptions={metricsFilterColumnOptions}
+              />
+            )}
+
+            {/* Time unit selector for chart grouping */}
+            <TimeUnitSelector
+              value={effectiveTimeUnit}
+              onChange={setSelectedTimeUnit}
+              startTimeMs={startTimeMs}
+              endTimeMs={endTimeMs}
+              allowClear={selectedTimeUnit !== null && selectedTimeUnit !== defaultTimeUnit}
+              onClear={() => setSelectedTimeUnit(null)}
+            />
+
+            {/*
+             * Time range selector - exclude 'ALL' since charts require start_time_ms and end_time_ms
+             * TODO: remove this once this is supported in backend
+             */}
+            <TracesV3DateSelector excludeOptions={['ALL']} componentId="mlflow.experiment.overview" />
+
+            {shouldEnableIssueDetection() && (
+              <div css={{ marginLeft: 'auto' }}>
+                <DetectIssuesButton
+                  componentId="mlflow.experiment.overview.detect-issues-button"
+                  onClick={() => setIsIssueDetectionModalOpen(true)}
+                />
+              </div>
+            )}
+          </div>
+
           <Tabs.Content value={OverviewTab.Usage} css={{ flex: 1, overflowY: 'auto' }}>
             <TabContentContainer>
               {/* Requests chart - full width */}
@@ -373,8 +394,26 @@ const ExperimentGenAIOverviewPageImpl = () => {
               )}
             </TabContentContainer>
           </Tabs.Content>
-        </OverviewChartProvider>
-      </Tabs.Root>
+
+          <Tabs.Content value={OverviewTab.Skills} css={{ flex: 1, overflowY: 'auto' }}>
+            <TabContentContainer>
+              {enableAllCharts ? (
+                <>
+                  <SkillCallStatistics />
+                  <LazySkillPerformanceSummary />
+                </>
+              ) : (
+                <Typography.Text color="secondary">
+                  <FormattedMessage
+                    defaultMessage="Skill metrics require Unity Catalog trace storage."
+                    description="Message shown on Skills tab when experiment uses MySQL trace storage"
+                  />
+                </Typography.Text>
+              )}
+            </TabContentContainer>
+          </Tabs.Content>
+        </Tabs.Root>
+      </OverviewChartProvider>
       {isIssueDetectionModalOpen && (
         <IssueDetectionModal onClose={() => setIsIssueDetectionModalOpen(false)} experimentId={experimentId} />
       )}

@@ -26,13 +26,24 @@ const createCountDataPoint = (toolName: string, status: string, count: number) =
   values: { [AggregationType.COUNT]: count },
 });
 
-// Helper to create a latency data point (grouped by tool name)
-const createLatencyDataPoint = (toolName: string, avgLatency: number) => ({
+// Helper to create a latency data point (grouped by tool name). min/max
+// default to avg so the range bar collapses to the avg position when callers
+// don't care about range visualization.
+const createLatencyDataPoint = (
+  toolName: string,
+  avgLatency: number,
+  minLatency: number = avgLatency,
+  maxLatency: number = avgLatency,
+) => ({
   metric_name: SpanMetricKey.LATENCY,
   dimensions: {
     [SpanDimensionKey.SPAN_NAME]: toolName,
   },
-  values: { [AggregationType.AVG]: avgLatency },
+  values: {
+    [AggregationType.AVG]: avgLatency,
+    'P0.0': minLatency,
+    'P100.0': maxLatency,
+  },
 });
 
 describe('ToolPerformanceSummary', () => {
@@ -318,7 +329,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Calls header to toggle to ascending
-      const callsHeader = screen.getByRole('button', { name: /Calls/i });
+      const callsHeader = screen.getByRole('columnheader', { name: /Calls/i });
       await userEvent.click(callsHeader);
 
       // Now should be ascending - gamma_tool first (210 calls)
@@ -338,7 +349,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Tool header
-      const toolHeader = screen.getByRole('button', { name: /^Tool$/i });
+      const toolHeader = screen.getByRole('columnheader', { name: /^Tool$/i });
       await userEvent.click(toolHeader);
 
       // Should sort by name descending first (gamma > beta > alpha)
@@ -358,7 +369,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Success header
-      const successHeader = screen.getByRole('button', { name: /Success/i });
+      const successHeader = screen.getByRole('columnheader', { name: /Success/i });
       await userEvent.click(successHeader);
 
       // Should sort by success rate descending
@@ -381,7 +392,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Click Latency header
-      const latencyHeader = screen.getByRole('button', { name: /Latency \(AVG\)/i });
+      const latencyHeader = screen.getByRole('columnheader', { name: /Latency \(AVG\)/i });
       await userEvent.click(latencyHeader);
 
       // Should sort by latency descending
@@ -402,7 +413,7 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Focus and press Enter on Tool header
-      const toolHeader = screen.getByRole('button', { name: /^Tool$/i });
+      const toolHeader = screen.getByRole('columnheader', { name: /^Tool$/i });
       toolHeader.focus();
       await userEvent.keyboard('{Enter}');
 
@@ -423,11 +434,11 @@ describe('ToolPerformanceSummary', () => {
       });
 
       // Default is Calls descending - check for descending icon
-      const callsHeader = screen.getByRole('button', { name: /Calls/i });
+      const callsHeader = screen.getByRole('columnheader', { name: /Calls/i });
       expect(within(callsHeader).getByRole('img', { hidden: true })).toBeInTheDocument();
 
       // Tool header should not have sort icon
-      const toolHeader = screen.getByRole('button', { name: /^Tool$/i });
+      const toolHeader = screen.getByRole('columnheader', { name: /^Tool$/i });
       expect(within(toolHeader).queryByRole('img', { hidden: true })).not.toBeInTheDocument();
     });
   });
