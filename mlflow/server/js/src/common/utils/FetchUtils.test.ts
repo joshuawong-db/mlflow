@@ -27,8 +27,10 @@ import {
   postYaml,
   deleteJson,
   deleteYaml,
+  fetchAPI,
 } from './FetchUtils';
 import { ErrorWrapper } from './ErrorWrapper';
+import { UnauthorizedError } from '@databricks/web-shared/errors';
 import { setActiveWorkspace } from '../../workspaces/utils/WorkspaceUtils';
 
 describe('FetchUtils', () => {
@@ -515,6 +517,45 @@ describe('FetchUtils', () => {
           }),
         );
       });
+    });
+  });
+
+  describe('fetchAPI predefined error messages', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    const mockFetchResponse = (body: unknown, status: number) => {
+      const response = new Response(JSON.stringify(body), { status });
+      jest.spyOn(global, 'fetch').mockImplementation(() => Promise.resolve(response));
+    };
+
+    const catchError = async (url: string) => {
+      try {
+        await fetchAPI(url);
+      } catch (e) {
+        return e as Error;
+      }
+      throw new Error('fetchAPI was expected to throw');
+    };
+
+    it('surfaces FastAPI `detail` text on the thrown error', async () => {
+      mockFetchResponse({ detail: 'User is not authorized to access this resource.' }, 401);
+      const error = await catchError('/ajax-api/3.0/mlflow/assistant/providers/claude_code/health');
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expect(error.message).toBe('User is not authorized to access this resource.');
+    });
+
+    it('prefers `message` over `detail` when both are present', async () => {
+      mockFetchResponse({ message: 'From message', detail: 'From detail' }, 401);
+      const error = await catchError('/ajax-api/2.0/mlflow/experiments/get');
+      expect(error.message).toBe('From message');
+    });
+
+    it('falls back to the predefined default when `detail` is a non-string validation array', async () => {
+      mockFetchResponse({ detail: [{ loc: ['body', 'x'], msg: 'field required' }] }, 401);
+      const error = await catchError('/ajax-api/2.0/mlflow/experiments/get');
+      expect(error.message).toBe(new UnauthorizedError({ status: 401 }).message);
     });
   });
 });
