@@ -432,8 +432,13 @@ export const fetchAPI = async (url: string, options: FetchAPIOptions = {}) => {
     const predefinedError = matchPredefinedError(response);
     if (predefinedError) {
       try {
-        // Attempt to use message from the response
-        const message = (await response.json()).message;
+        // Attempt to use the error text from the response body. MLflow's FastAPI
+        // endpoints return it under `detail`; some endpoints use `message`.
+        const body = await response.json();
+        const message =
+          (typeof body.message === 'string' && body.message) ||
+          (typeof body.detail === 'string' && body.detail) ||
+          undefined;
         predefinedError.message = message ?? predefinedError.message;
       } catch {
         // If the message can't be parsed, use default one
