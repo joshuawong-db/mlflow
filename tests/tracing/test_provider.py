@@ -1,4 +1,5 @@
 import random
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
@@ -291,6 +292,41 @@ def test_disable_enable_tracing():
         with pytest.raises(MlflowTracingException, match="error"):
             mlflow.tracing.enable()
         assert is_enabled_mock.call_count == 2
+
+
+def _count_batch_span_processor_threads():
+    return sum("OtelBatchSpanRecordProcessor" in thread.name for thread in threading.enumerate())
+
+
+def test_disable_enable_does_not_leak_span_processor_threads():
+    # Every enable() builds a new tracer provider whose BatchSpanProcessor owns a daemon
+    # thread. Replacing the provider must shut down the previous one so that thread is
+    # reclaimed rather than orphaned (https://github.com/mlflow/mlflow/issues/24209).
+    baseline = _count_batch_span_processor_threads()
+    for _ in range(10):
+        mlflow.tracing.disable()
+        mlflow.tracing.enable()
+    mlflow.tracing.disable()  # settle to a NoOp provider that owns no threads
+
+    # Before the fix this count grew to 10 (one orphaned daemon thread per cycle).
+    assert _count_batch_span_processor_threads() <= baseline
+
+
+def test_trace_disabled_does_not_leak_span_processor_threads():
+    # `@trace_disabled` runs a disable()/enable() cycle on every call when tracing is on,
+    # which is how load_model()/log_model() triggered the leak in practice (#24209).
+    @trace_disabled
+    def load_model():
+        return 0
+
+    assert is_tracing_enabled()
+    baseline = _count_batch_span_processor_threads()
+    for _ in range(10):
+        load_model()
+    mlflow.tracing.disable()  # settle to a NoOp provider so only leaked threads remain
+
+    # Before the fix each call orphaned a daemon thread, leaving 10 behind.
+    assert _count_batch_span_processor_threads() <= baseline
 
 
 @pytest.mark.parametrize("enabled_initially", [True, False])

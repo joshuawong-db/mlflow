@@ -504,9 +504,17 @@ def _initialize_tracer_provider(disabled=False):
     state. It is the caller's responsibility to ensure that the tracer provider is initialized
     only once, and update the _INITIALIZED flag accordingly.
     """
+    # Capture the outgoing provider before the swap so its span processors - and the
+    # BatchSpanProcessor daemon threads they own - can be shut down afterwards instead of being
+    # orphaned (https://github.com/mlflow/mlflow/issues/24209). Only in isolated mode does MLflow
+    # own the provider outright; in global mode it may be shared with other OpenTelemetry
+    # instrumentation, so tearing it down is unsafe.
+    previous_provider = provider.get() if MLFLOW_USE_DEFAULT_TRACER_PROVIDER.get() else None
+
     processors = _get_span_processors(disabled=disabled)
     if not processors:
         provider.set(trace.NoOpTracerProvider())
+        _shutdown_tracer_provider(previous_provider)
         return
 
     # Demote the "Failed to detach context" log raised by the OpenTelemetry logger to DEBUG
@@ -585,6 +593,27 @@ def _initialize_tracer_provider(disabled=False):
         tracer_provider.add_span_processor(processor)
 
     provider.set(tracer_provider)
+    _shutdown_tracer_provider(previous_provider)
+
+
+def _shutdown_tracer_provider(tracer_provider) -> None:
+    """
+    Shut down a tracer provider that has just been replaced, so the BatchSpanProcessor daemon
+    threads owned by its span processors are reclaimed rather than leaked
+    (https://github.com/mlflow/mlflow/issues/24209).
+
+    This is intentionally cheap and in-band: ``shutdown()`` flushes each processor's in-memory
+    span buffer into the exporter (a non-blocking enqueue onto the async export queue) and joins
+    the daemon thread. It does NOT drain the exporter's async export queue, so no network I/O
+    happens on this path.
+    """
+    # NoOpTracerProvider and None have no span processors or threads to reclaim.
+    if not isinstance(tracer_provider, TracerProvider):
+        return
+    try:
+        tracer_provider.shutdown()
+    except Exception:
+        _logger.debug("Failed to shut down the previous tracer provider.", exc_info=True)
 
 
 def _parse_otel_resource_attributes(otel_resource_attributes: str | None) -> dict[str, Any]:
