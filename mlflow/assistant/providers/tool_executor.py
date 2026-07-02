@@ -167,6 +167,7 @@ async def execute_tool(
     cwd: Path | None = None,
     tracking_uri: str | None = None,
     permissions: PermissionsConfig | None = None,
+    caller_token: str | None = None,
 ) -> tuple[str, bool]:
     perms = permissions or PermissionsConfig()
 
@@ -183,7 +184,11 @@ async def execute_tool(
         match tool_name:
             case "Bash":
                 return await _execute_bash(
-                    tool_input, cwd=cwd, tracking_uri=tracking_uri, use_shell=use_shell
+                    tool_input,
+                    cwd=cwd,
+                    tracking_uri=tracking_uri,
+                    use_shell=use_shell,
+                    caller_token=caller_token,
                 )
             case "Read":
                 return await asyncio.to_thread(_execute_read, tool_input, cwd=cwd)
@@ -203,6 +208,7 @@ async def _execute_bash(
     cwd: Path | None,
     tracking_uri: str | None,
     use_shell: bool = False,
+    caller_token: str | None = None,
 ) -> tuple[str, bool]:
     command = tool_input.get("command", "")
     if not command:
@@ -211,6 +217,12 @@ async def _execute_bash(
     env = os.environ.copy()
     if tracking_uri:
         env["MLFLOW_TRACKING_URI"] = tracking_uri
+    # Forward the calling user's bearer token so the `mlflow` CLI's HTTP calls are
+    # authorized as that user by the tracking server's auth plugin. Only effective
+    # when MLFLOW_TRACKING_URI is http(s) (RestStore); a local file/sqlite backend
+    # bypasses auth entirely.
+    if caller_token:
+        env["MLFLOW_TRACKING_TOKEN"] = caller_token
 
     try:
         if use_shell:

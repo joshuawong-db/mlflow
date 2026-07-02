@@ -47,6 +47,15 @@ def test_session_clear_pending_message_returns_none_when_none():
     assert msg is None
 
 
+def test_session_roundtrip_preserves_caller_token():
+    session = Session(caller_token="tok-abc")
+    assert Session.from_dict(session.to_dict()).caller_token == "tok-abc"
+
+
+def test_session_from_dict_without_caller_token_defaults_none():
+    assert Session.from_dict({"messages": []}).caller_token is None
+
+
 def test_session_update_context():
     session = Session(context={"key1": "value1"})
     session.update_context({"key2": "value2"})

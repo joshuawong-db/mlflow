@@ -361,6 +361,7 @@ class OpenAICompatibleProvider(AssistantProvider):
         mlflow_session_id: str | None = None,
         cwd: Path | None = None,
         context: dict[str, Any] | None = None,
+        caller_token: str | None = None,
     ) -> AsyncGenerator[Event, None]:
         config = self._load_config()
         if config is None:
@@ -646,6 +647,7 @@ class OpenAICompatibleProvider(AssistantProvider):
                             cwd=cwd,
                             tracking_uri=tracking_uri,
                             permissions=effective_permissions,
+                            caller_token=caller_token,
                         )
 
                         yield Event.from_message(

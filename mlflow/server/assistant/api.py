@@ -120,12 +120,13 @@ class SkillsInstallResponse(BaseModel):
 
 
 @assistant_router.post("/message")
-async def send_message(request: MessageRequest) -> MessageResponse:
+async def send_message(request: MessageRequest, http_request: Request) -> MessageResponse:
     """
     Send a message to the assistant and get a session for streaming the response.
 
     Args:
         request: MessageRequest with message, context, and optional session_id
+        http_request: The FastAPI request, used to capture the caller's bearer token
 
     Returns:
         MessageResponse with session_id and stream_url
@@ -143,6 +144,15 @@ async def send_message(request: MessageRequest) -> MessageResponse:
         )
     elif request.context:
         session.update_context(request.context)
+
+    # Capture the caller's bearer token here (a `fetch` that can carry an
+    # Authorization header) rather than on the SSE stream, which EventSource
+    # cannot authenticate. Forwarded to the MLflow CLI so tool calls run as this
+    # user. Refreshed on every message so a rotated (or absent) token takes effect.
+    # Only the Bearer scheme is accepted; other schemes are ignored so a non-Bearer
+    # credential isn't silently forwarded as one.
+    scheme, _, rest = http_request.headers.get("authorization", "").partition(" ")
+    session.caller_token = rest.strip() or None if scheme.lower() == "bearer" else None
 
     # Store the pending message with role
     session.set_pending_message(role="user", content=request.message)
@@ -215,6 +225,7 @@ async def stream_response(request: Request, session_id: str) -> StreamingRespons
             mlflow_session_id=session_id,
             cwd=session.working_dir,
             context=context,
+            caller_token=session.caller_token,
         ):
             # Store provider session ID if returned (for conversation continuity).
             # On a paused turn this persists the history with the unanswered

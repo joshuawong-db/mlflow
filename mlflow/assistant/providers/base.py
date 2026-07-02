@@ -89,6 +89,7 @@ class AssistantProvider(ABC):
         mlflow_session_id: str | None = None,
         cwd: Path | None = None,
         context: dict[str, Any] | None = None,
+        caller_token: str | None = None,
     ) -> AsyncGenerator[Event, None]:
         """
         Stream responses from the assistant asynchronously.
@@ -101,6 +102,9 @@ class AssistantProvider(ABC):
             cwd: Working directory for the assistant
             context: Additional context for the assistant, such as information from
                 the current UI page the user is viewing (e.g., experimentId, traceId)
+            caller_token: Bearer token of the requesting user, forwarded to server-side
+                tool calls so they are authorized as that user. CLI-subprocess providers
+                (Claude Code, Codex) run on the user's own machine and ignore it.
 
         Yields:
             Event objects with 'type' and 'data' payloads.

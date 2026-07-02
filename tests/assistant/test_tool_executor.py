@@ -221,6 +221,33 @@ def test_remote_env_disables_full_access_file_escape(monkeypatch, workspace):
     assert "Permission denied" in result
 
 
+def test_caller_token_injected_into_bash_env():
+    perms = PermissionsConfig(full_access=True)
+    result, is_error = _run(
+        execute_tool(
+            "Bash",
+            {"command": 'printf "%s" "$MLFLOW_TRACKING_TOKEN"'},
+            caller_token="secret-token-123",
+            permissions=perms,
+        )
+    )
+    assert not is_error
+    assert result == "secret-token-123"
+
+
+def test_no_caller_token_leaves_env_unset():
+    perms = PermissionsConfig(full_access=True)
+    result, is_error = _run(
+        execute_tool(
+            "Bash",
+            {"command": 'printf "%s" "${MLFLOW_TRACKING_TOKEN-UNSET}"'},
+            permissions=perms,
+        )
+    )
+    assert not is_error
+    assert result == "UNSET"
+
+
 def test_bash_full_access_allows_any_command():
     perms = PermissionsConfig(full_access=True)
     result, is_error = _run(execute_tool("Bash", {"command": "echo hello"}, permissions=perms))

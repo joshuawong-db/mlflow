@@ -334,6 +334,7 @@ class ClaudeCodeProvider(AssistantProvider):
         mlflow_session_id: str | None = None,
         cwd: Path | None = None,
         context: dict[str, Any] | None = None,
+        caller_token: str | None = None,
     ) -> AsyncGenerator[Event, None]:
         """
         Stream responses from Claude Code CLI asynchronously.
@@ -346,6 +347,8 @@ class ClaudeCodeProvider(AssistantProvider):
             cwd: Working directory for Claude Code CLI
             context: Additional context for the assistant, such as information from
                 the current UI page the user is viewing (e.g., experimentId, traceId)
+            caller_token: Accepted for interface parity with the server-side providers;
+                ignored here since Claude Code runs on the user's own machine.
 
         Yields:
             Event objects

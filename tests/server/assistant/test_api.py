@@ -72,6 +72,7 @@ class MockProvider(AssistantProvider):
         mlflow_session_id: str | None = None,
         cwd: Path | None = None,
         context: dict[str, Any] | None = None,
+        caller_token: str | None = None,
     ):
         yield Event.from_message(message=Message(role="user", content="Hello from mock"))
         yield Event.from_result(result="complete", session_id="mock-session-123")
@@ -144,6 +145,22 @@ def test_message(client):
 
     assert response.status_code == 200
     assert response.json()["session_id"] == session_id
+
+
+def test_message_captures_bearer_token_on_session(client):
+    r = client.post(
+        "/ajax-api/3.0/mlflow/assistant/message",
+        json={"message": "Hi"},
+        headers={"Authorization": "Bearer tok-xyz"},
+    )
+    session_id = r.json()["session_id"]
+    assert SessionManager.load(session_id).caller_token == "tok-xyz"
+
+
+def test_message_without_authorization_leaves_token_none(client):
+    r = client.post("/ajax-api/3.0/mlflow/assistant/message", json={"message": "Hi"})
+    session_id = r.json()["session_id"]
+    assert SessionManager.load(session_id).caller_token is None
 
 
 def test_stream_not_found_for_invalid_session(client):
@@ -406,6 +423,7 @@ class _DeferredProvider(MockProvider):
         mlflow_session_id=None,
         cwd=None,
         context=None,
+        caller_token=None,
     ):
         decisions = (context or {}).get("tool_decisions") or {}
         if not decisions:
@@ -476,8 +494,9 @@ class _CaptureProvider(MockProvider):
         mlflow_session_id=None,
         cwd=None,
         context=None,
+        caller_token=None,
     ):
-        self.captured = {"prompt": prompt, "context": context or {}}
+        self.captured = {"prompt": prompt, "context": context or {}, "caller_token": caller_token}
         yield Event.from_result(result=None, session_id="prov-done")
 
 
@@ -530,6 +549,27 @@ async def test_stream_forwards_tool_decision_when_no_pending_message():
 
     assert provider.captured["prompt"] == ""
     assert provider.captured["context"]["tool_decisions"] == {"t1": "allow"}
+
+
+@pytest.mark.asyncio
+async def test_stream_forwards_caller_token_to_provider():
+    from mlflow.server.assistant.api import stream_response
+
+    session_id = "f5f28c66-5ec6-46a1-9a2e-ca55fb64bf47"
+    session = SessionManager.create()
+    session.set_pending_message(role="user", content="hi")
+    session.caller_token = "tok-fwd"
+    SessionManager.save(session_id, session)
+
+    mock_request = MagicMock()
+    mock_request.base_url = "http://localhost:5000/"
+    provider = _CaptureProvider()
+
+    with patch("mlflow.server.assistant.api._get_selected_provider", return_value=provider):
+        response = await stream_response(mock_request, session_id)
+        _ = "".join([c async for c in response.body_iterator])
+
+    assert provider.captured["caller_token"] == "tok-fwd"
 
 
 def test_resolve_permission_rejects_invalid_session(client):
