@@ -39,6 +39,7 @@ from mlflow.protos.databricks_pb2 import (
 from mlflow.store.db.db_types import MSSQL, MYSQL, POSTGRES, SQLITE
 from mlflow.store.entities import PagedList
 from mlflow.store.tracking import (
+    MAX_RESULTS_GET_METRIC_HISTORY,
     SEARCH_MAX_RESULTS_THRESHOLD,
 )
 from mlflow.store.tracking.dbmodels import models
@@ -2818,6 +2819,80 @@ def test_get_metric_history_bulk_interval_with_step_range(store: SqlAlchemyStore
     assert all(20 <= s <= 30 for s in returned_steps)
     # Should contain all steps in range since max_results > range size
     assert returned_steps == set(range(20, 31))
+
+
+def test_get_metric_history_bulk_interval_all_on_single_step(store: SqlAlchemyStore):
+    run = _run_factory(store)
+    run_id = run.info.run_id
+
+    metric_key = "loss"
+    # Log 5000 values without an explicit step, so they all land on step 0. This is the common
+    # case where naive step sampling collapses to a single step and the final fetch would return
+    # the whole history.
+    for i in range(5000):
+        store.log_metric(
+            run_id,
+            models.SqlMetric(
+                key=metric_key, value=float(i), timestamp=1000 + i, step=0
+            ).to_mlflow_entity(),
+        )
+
+    max_results = 100
+    result = store.get_metric_history_bulk_interval(
+        run_ids=[run_id],
+        metric_key=metric_key,
+        max_results=max_results,
+        start_step=None,
+        end_step=None,
+    )
+
+    # The result is bounded by max_results even though every value shares step 0.
+    assert len(result) <= max_results + 1
+    # The sampled series spans the full value range instead of returning only a leading slice.
+    values = [m.value for m in result]
+    assert values[0] == 0.0
+    assert values[-1] == 4999.0
+    assert values == sorted(values)
+
+
+def test_get_metric_history_bulk_interval_many_rows_across_many_steps_is_bounded(
+    store: SqlAlchemyStore,
+):
+    # A run logging many values across many distinct steps must stay under a global per-run cap.
+    # Per-step sampling bounds each step at max_results, but summed across every sampled step the
+    # total would otherwise be O(max_results * num_steps) and re-open the memory blowup for the
+    # common multi-step case.
+    run = _run_factory(store)
+    run_id = run.info.run_id
+
+    metric_key = "loss"
+    # Every one of the 200 steps is sampled (num_steps <= max_results) and each yields
+    # ~max_results rows, so without a global cap the result is ~200 * 150 rows, which exceeds
+    # MAX_RESULTS_GET_METRIC_HISTORY.
+    metrics = [
+        models.SqlMetric(
+            key=metric_key,
+            value=float(step * 1000 + j),
+            timestamp=1000 + step * 1000 + j,
+            step=step,
+        ).to_mlflow_entity()
+        for step in range(200)
+        for j in range(300)
+    ]
+    for chunk_start in range(0, len(metrics), 1000):
+        store.log_batch(
+            run_id, metrics=metrics[chunk_start : chunk_start + 1000], params=[], tags=[]
+        )
+
+    result = store.get_metric_history_bulk_interval(
+        run_ids=[run_id],
+        metric_key=metric_key,
+        max_results=200,
+        start_step=None,
+        end_step=None,
+    )
+
+    assert len(result) <= MAX_RESULTS_GET_METRIC_HISTORY
 
 
 def test_insert_large_text_in_dataset_table(store: SqlAlchemyStore):

@@ -1,5 +1,7 @@
 import bisect
+import itertools
 import json
+import math
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -54,6 +56,35 @@ from mlflow.utils import mlflow_tags
 from mlflow.utils.annotations import developer_stable, requires_sql_backend
 from mlflow.utils.async_logging.async_logging_queue import AsyncLoggingQueue
 from mlflow.utils.async_logging.run_operations import RunOperations
+
+
+def _sample_metrics_within_steps(metrics, max_results):
+    """Downsample metrics to at most ``max_results`` rows per step, spanning each step's range.
+
+    ``metrics`` must be sorted by ``(step, timestamp, value)``. Within each step the rows are
+    evenly sampled while always preserving the first and last row, mirroring the SQL window
+    sampling in ``SqlAlchemyStore`` so both stores return the same series. This bounds the result
+    when a single step holds a very large number of values (e.g. metrics logged without an explicit
+    step, which all land on step 0).
+
+    The combined result is then capped at ``MAX_RESULTS_GET_METRIC_HISTORY`` total rows - a global
+    per-run backstop mirroring the SQL ``LIMIT`` - so a run logging many values across many steps
+    cannot return ``max_results * num_steps`` rows.
+    """
+    sampled = []
+    for _, group in itertools.groupby(metrics, key=lambda metric: metric.step):
+        rows = list(group)
+        count = len(rows)
+        if count <= max_results:
+            sampled.extend(rows)
+        else:
+            stride = math.ceil(count / max_results)
+            sampled.extend(
+                row for index, row in enumerate(rows) if index % stride == 0 or index == count - 1
+            )
+        if len(sampled) >= MAX_RESULTS_GET_METRIC_HISTORY:
+            return sampled[:MAX_RESULTS_GET_METRIC_HISTORY]
+    return sampled
 
 
 @developer_stable
@@ -983,16 +1014,16 @@ class AbstractStore(GatewayStoreMixin):
 
             sampled_steps.add(all_steps[end_idx - 1])
 
-        steps = sorted(sampled_steps.union(all_mins_and_maxes))
+        steps = set(sampled_steps.union(all_mins_and_maxes))
         metrics_with_run_ids = []
         for run_id in run_ids:
+            metrics_for_run = sorted(
+                (m for m in self.get_metric_history(run_id, metric_key) if m.step in steps),
+                key=lambda metric: (metric.step, metric.timestamp, metric.value),
+            )
             metrics_with_run_ids.extend(
-                self.get_metric_history_bulk_interval_from_steps(
-                    run_id=run_id,
-                    metric_key=metric_key,
-                    steps=steps,
-                    max_results=MAX_RESULTS_GET_METRIC_HISTORY,
-                )
+                MetricWithRunId(run_id=run_id, metric=metric)
+                for metric in _sample_metrics_within_steps(metrics_for_run, max_results)
             )
         return metrics_with_run_ids
 

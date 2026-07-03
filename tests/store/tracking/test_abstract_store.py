@@ -6,6 +6,7 @@ import pytest
 
 from mlflow.entities import Metric
 from mlflow.entities.metric import MetricWithRunId
+from mlflow.store.tracking import MAX_RESULTS_GET_METRIC_HISTORY
 from mlflow.store.tracking.abstract_store import AbstractStore
 
 
@@ -255,6 +256,39 @@ def test_get_sampled_steps_from_steps(start_step, end_step, max_results, steps, 
 
     actual_steps = {metric.step for metric in metrics}
     assert actual_steps == expected
+
+
+def test_get_metric_history_bulk_interval_all_on_single_step(store):
+    # Every value is logged without an explicit step, so all 2000 values share step 0. Naive step
+    # sampling collapses to one step; the result must still be bounded and span the full range.
+    store.metrics = [Metric("loss", float(i), 1000 + i, 0, run_id="run1") for i in range(2000)]
+
+    max_results = 50
+    result = store.get_metric_history_bulk_interval(["run1"], "loss", max_results, None, None)
+
+    assert len(result) <= max_results + 1
+    values = [m.value for m in result]
+    assert values[0] == 0.0
+    assert values[-1] == 1999.0
+    assert values == sorted(values)
+
+
+def test_get_metric_history_bulk_interval_many_rows_across_many_steps_is_bounded(store):
+    # A run that logs many values across many distinct steps must not blow past a global per-run
+    # cap. Per-step sampling alone bounds each step at max_results, but the total across sampled
+    # steps would otherwise be O(max_results * num_steps). Here every one of the 200 steps is
+    # sampled (num_steps <= max_results) and each yields ~max_results rows, so without a global
+    # cap the result is ~200 * 150 > MAX_RESULTS_GET_METRIC_HISTORY.
+    store.metrics = [
+        Metric("loss", float(step * 1000 + j), 1000 + step * 1000 + j, step, run_id="run1")
+        for step in range(200)
+        for j in range(300)
+    ]
+
+    max_results = 200
+    result = store.get_metric_history_bulk_interval(["run1"], "loss", max_results, None, None)
+
+    assert len(result) <= MAX_RESULTS_GET_METRIC_HISTORY
 
 
 # Tests for get_metric_history_bulk_interval_from_steps

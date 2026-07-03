@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 import sqlalchemy
 import sqlalchemy.orm
 import sqlalchemy.sql.expression as sql
-from sqlalchemy import and_, case, distinct, exists, func, or_, select, sql
+from sqlalchemy import Integer, and_, case, cast, distinct, exists, func, or_, select, sql
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Query, Session, aliased, joinedload, selectinload
 from sqlalchemy.sql.elements import ColumnElement
@@ -1674,15 +1674,78 @@ class SqlAlchemyStore(SqlAlchemyGatewayStoreMixin, AbstractStore):
 
             steps = sorted(sampled_steps.union(all_mins_and_maxes))
 
+            # Fetch metrics for the sampled steps, but row-sample within each (run, step)
+            # partition so that a single step holding a very large number of values (e.g. the
+            # common case where every value is logged without an explicit step and thus lands on
+            # step 0) does not materialize all rows. Each partition is downsampled to at most
+            # `max_results` rows while always preserving its first and last row, so the returned
+            # series still spans the full value range instead of returning only a leading slice.
+            return self._sample_metric_rows_within_steps(
+                session=session,
+                run_ids=run_ids,
+                metric_key=metric_key,
+                steps=steps,
+                max_results=max_results,
+            )
+
+    def _sample_metric_rows_within_steps(
+        self,
+        session: Session,
+        run_ids: list[str],
+        metric_key: str,
+        steps: list[int],
+        max_results: int,
+    ) -> list[MetricWithRunId]:
+        # Query per run so results stay grouped in the caller's requested run order (matching the
+        # historical per-run iteration) instead of the DB's lexicographic run_uuid order.
         metrics_with_run_ids = []
         for run_id in run_ids:
-            metrics_with_run_ids.extend(
-                self.get_metric_history_bulk_interval_from_steps(
-                    run_id=run_id,
-                    metric_key=metric_key,
-                    steps=steps,
-                    max_results=MAX_RESULTS_GET_METRIC_HISTORY,
+            order_by = [SqlMetric.step, SqlMetric.timestamp, SqlMetric.value]
+            row_number = (
+                func.row_number().over(partition_by=[SqlMetric.step], order_by=order_by)
+            ).label("row_number")
+            row_count = (func.count().over(partition_by=[SqlMetric.step])).label("row_count")
+            subquery = (
+                session
+                .query(SqlMetric, row_number, row_count)
+                .filter(
+                    SqlMetric.key == metric_key,
+                    SqlMetric.run_uuid == run_id,
+                    SqlMetric.step.in_(steps),
                 )
+                .subquery()
+            )
+
+            # stride = ceil(row_count / max_results); keeping every `stride`-th row (plus the
+            # first and last) yields at most `max_results` evenly spaced rows spanning the step.
+            # The `row_count <= max_results` branch short-circuits small steps, so a run with one
+            # row per step is returned unchanged.
+            stride = cast(
+                func.floor((subquery.c.row_count + max_results - 1) / max_results), Integer
+            )
+            keep = or_(
+                subquery.c.row_count <= max_results,
+                subquery.c.row_number == 1,
+                subquery.c.row_number == subquery.c.row_count,
+                ((subquery.c.row_number - 1) % stride) == 0,
+            )
+
+            metric_cls = aliased(SqlMetric, subquery)
+            # Global per-run backstop: bound the materialized rows at MAX_RESULTS_GET_METRIC_HISTORY
+            # so a run logging many values across many steps can't return `max_results * num_steps`
+            # rows (which would re-open the memory blowup this endpoint is meant to avoid). The
+            # per-step `keep` filter already thins each step to `max_results`; this caps the sum.
+            metrics = (
+                session
+                .query(metric_cls)
+                .filter(keep)
+                .order_by(subquery.c.step, subquery.c.timestamp, subquery.c.value)
+                .limit(MAX_RESULTS_GET_METRIC_HISTORY)
+                .all()
+            )
+            metrics_with_run_ids.extend(
+                MetricWithRunId(run_id=metric.run_uuid, metric=metric.to_mlflow_entity())
+                for metric in metrics
             )
         return metrics_with_run_ids
 
