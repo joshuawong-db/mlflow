@@ -57,7 +57,7 @@ from mlflow.pyfunc.model import (
     ResponsesAgentRequest,
     ResponsesAgentResponse,
 )
-from mlflow.server.gateway_api import chat_completions, invocations
+from mlflow.server.gateway_api import chat_completions, invocations, typesafe_passthrough_system_one
 from mlflow.store.tracking.gateway.entities import GatewayEndpointConfig, GatewayModelConfig
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
 from mlflow.telemetry.client import TelemetryClient
@@ -1964,6 +1964,10 @@ def test_gateway_crud_telemetry(mock_requests, mock_telemetry_client: TelemetryC
             "routing_strategy": None,
             "num_model_configs": 1,
             "usage_tracking": True,
+            "providers": ["openai"],
+            "primary_provider": "openai",
+            "has_typesafe_provider": False,
+            "mixed_providers": False,
         },
     )
 
@@ -2003,6 +2007,10 @@ def test_gateway_crud_telemetry(mock_requests, mock_telemetry_client: TelemetryC
             "routing_strategy": None,
             "num_model_configs": None,
             "usage_tracking": None,
+            "providers": ["openai"],
+            "primary_provider": "openai",
+            "has_typesafe_provider": False,
+            "mixed_providers": False,
         },
     )
 
@@ -2361,6 +2369,55 @@ async def test_gateway_invocation_telemetry(
     assert params["invocation_type"] == "mlflow_chat_completions"
     assert params["endpoint_id"] == endpoint.endpoint_id
     assert params["provider"] == "openai"
+
+    # Test TypeSafe System One passthrough endpoint
+    mock_request = MagicMock(spec=Request)
+    mock_request.state.cached_body = {
+        "model": endpoint.name,
+        "state": {"inputs": "What is MLflow?", "outputs": "An ML platform."},
+        "questions": {"relevance": {"type": "noul", "instructions": "Is the answer relevant?"}},
+    }
+    mock_request.state.username = None
+    mock_request.state.user_id = None
+    mock_request.headers = {}
+
+    with (
+        patch("mlflow.server.gateway_api._get_store", return_value=store),
+        patch("mlflow.server.gateway_api.check_budget_limit"),
+        patch(
+            "mlflow.server.gateway_api._create_provider_from_endpoint_name"
+        ) as mock_create_provider,
+    ):
+        mock_provider = MagicMock()
+        mock_provider.passthrough = AsyncMock(return_value={"answers": {}})
+        mock_endpoint_config = GatewayEndpointConfig(
+            endpoint_id=endpoint.endpoint_id,
+            endpoint_name=endpoint.name,
+            models=[
+                GatewayModelConfig(
+                    model_definition_id="typesafe-model-def",
+                    provider="typesafe",
+                    model_name="jev-latest",
+                    secret_value={"api_key": "test"},
+                    linkage_type=GatewayModelLinkageType.PRIMARY,
+                )
+            ],
+        )
+        mock_create_provider.return_value = (mock_provider, mock_endpoint_config)
+
+        await typesafe_passthrough_system_one(mock_request)
+
+    data = validate_telemetry_record(
+        mock_telemetry_client,
+        mock_requests,
+        GatewayInvocationEvent.name,
+        check_params=False,
+    )
+    params = json.loads(data["params"])
+    assert params["is_streaming"] is False
+    assert params["invocation_type"] == "typesafe_passthrough_system_one"
+    assert params["endpoint_id"] == endpoint.endpoint_id
+    assert params["provider"] == "typesafe"
 
     # Test streaming invocation — timing fields should be absent
     mock_request = MagicMock(spec=Request)

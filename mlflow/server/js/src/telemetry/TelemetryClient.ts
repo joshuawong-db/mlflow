@@ -29,7 +29,14 @@ const VIEW_EVENT_ALLOWLIST: ReadonlySet<string> = new Set([
  * Every value MUST be a static/enumerated string — never user-generated content.
  * To add a new key, update this type and add a corresponding validator below.
  */
-type AllowedTelemetryMetadataKey = 'secretMode' | 'provider' | 'model' | 'usageTracking';
+type AllowedTelemetryMetadataKey =
+  | 'secretMode'
+  | 'provider'
+  | 'model'
+  | 'usageTracking'
+  | 'codingAgent'
+  | 'apiVariant'
+  | 'language';
 
 export type AllowedTelemetryMetadata = Partial<Record<AllowedTelemetryMetadataKey, string | null | undefined>>;
 
@@ -41,6 +48,15 @@ export type AllowedTelemetryMetadata = Partial<Record<AllowedTelemetryMetadataKe
 const METADATA_VALIDATORS: Partial<Record<AllowedTelemetryMetadataKey, ReadonlySet<string>>> = {
   secretMode: new Set(['new', 'existing']),
   usageTracking: new Set(['true', 'false']),
+  codingAgent: new Set(['claude-code', 'codex', 'gemini-cli']),
+  apiVariant: new Set([
+    'chat-completions',
+    'openai-responses',
+    'anthropic-messages',
+    'gemini-generate',
+    'typesafe-systemone',
+  ]),
+  language: new Set(['curl', 'python']),
   provider: new Set([
     'openai',
     'anthropic',
@@ -208,7 +224,7 @@ class TelemetryClient {
    *   - Static/enumerated values (e.g., "new" | "existing"), NOT user-generated strings
    *   - Free of PII, secrets, tokens, or any user-identifiable information
    *
-   * Values for keys with validators (secretMode, usageTracking, provider) are checked
+   * Values for keys with validators are checked
    * at runtime and silently dropped if invalid. Keys without validators (e.g., model)
    * are passed through — callers must ensure they come from a trusted source.
    *

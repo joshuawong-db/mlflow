@@ -11,6 +11,12 @@ from mlflow.entities.gateway_budget_policy import (
     BudgetTargetScope,
     BudgetUnit,
 )
+from mlflow.entities.gateway_endpoint import (
+    GatewayEndpoint,
+    GatewayEndpointModelMapping,
+    GatewayModelDefinition,
+    GatewayModelLinkageType,
+)
 from mlflow.entities.issue import Issue, IssueSeverity, IssueStatus
 from mlflow.entities.mcp_server import MCPRemoteTransportType, MCPStatus
 from mlflow.genai.discovery.entities import DiscoverIssuesResult
@@ -417,6 +423,68 @@ def test_simulate_conversation_parse_result(result, expected_params):
 )
 def test_gateway_create_endpoint_parse_params(arguments, expected_params):
     assert GatewayCreateEndpointEvent.parse(arguments) == expected_params
+
+
+def _make_gateway_endpoint_with_providers(*providers: str) -> GatewayEndpoint:
+    return GatewayEndpoint(
+        endpoint_id="e-test",
+        name="test-endpoint",
+        created_at=0,
+        last_updated_at=0,
+        model_mappings=[
+            GatewayEndpointModelMapping(
+                mapping_id=f"m-{provider}",
+                endpoint_id="e-test",
+                model_definition_id=f"md-{provider}",
+                model_definition=GatewayModelDefinition(
+                    model_definition_id=f"md-{provider}",
+                    name=f"{provider}-model",
+                    secret_id="s-test",
+                    secret_name="secret",
+                    provider=provider,
+                    model_name="model",
+                    created_at=0,
+                    last_updated_at=0,
+                ),
+                weight=1.0,
+                linkage_type=GatewayModelLinkageType.PRIMARY
+                if index == 0
+                else GatewayModelLinkageType.FALLBACK,
+                fallback_order=None if index == 0 else index,
+                created_at=0,
+            )
+            for index, provider in enumerate(providers)
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    ("event", "providers", "expected_params"),
+    [
+        (
+            GatewayCreateEndpointEvent,
+            ("openai",),
+            {
+                "providers": ["openai"],
+                "primary_provider": "openai",
+                "has_typesafe_provider": False,
+                "mixed_providers": False,
+            },
+        ),
+        (
+            GatewayUpdateEndpointEvent,
+            ("typesafe", "openai"),
+            {
+                "providers": ["openai", "typesafe"],
+                "primary_provider": "typesafe",
+                "has_typesafe_provider": True,
+                "mixed_providers": True,
+            },
+        ),
+    ],
+)
+def test_gateway_endpoint_events_parse_result_provider_params(event, providers, expected_params):
+    assert event.parse_result(_make_gateway_endpoint_with_providers(*providers)) == expected_params
 
 
 @pytest.mark.parametrize(

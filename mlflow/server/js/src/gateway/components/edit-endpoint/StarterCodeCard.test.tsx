@@ -5,6 +5,7 @@ import { StarterCodeCard } from './StarterCodeCard';
 import { MemoryRouter } from '../../../common/utils/RoutingUtils';
 import { QueryClient, QueryClientProvider } from '../../../common/utils/reactQueryHooks';
 import * as FetchUtils from '../../../common/utils/FetchUtils';
+import { telemetryClient } from '../../../telemetry';
 
 const renderCard = (props: { endpointName: string; provider?: string }) =>
   renderWithDesignSystem(
@@ -17,6 +18,7 @@ const renderCard = (props: { endpointName: string; provider?: string }) =>
 
 describe('StarterCodeCard', () => {
   afterEach(() => {
+    jest.clearAllMocks();
     jest.restoreAllMocks();
   });
 
@@ -93,6 +95,15 @@ describe('StarterCodeCard', () => {
     expect(code).toContain('/gateway/typesafe/v1/systemone');
     expect(code).toContain('response.raise_for_status()');
     expect(code).toContain('response.json()["answers"]["evaluation"]');
+    expect(telemetryClient.logEventWithMetadata_I_CONFIRM_THERE_IS_NO_PII).toHaveBeenCalledWith(
+      'mlflow.gateway.edit-endpoint.starter-code',
+      'onLanguageChange',
+      {
+        provider: 'typesafe',
+        apiVariant: 'typesafe-systemone',
+        language: 'python',
+      },
+    );
   });
 
   it('sends a typed System One request and displays the probability', async () => {
@@ -102,6 +113,16 @@ describe('StarterCodeCard', () => {
     } as Response);
     renderCard({ endpointName: 'jev-evaluator', provider: 'typesafe' });
     await userEvent.click(screen.getByText('Try in Browser'));
+
+    expect(telemetryClient.logEventWithMetadata_I_CONFIRM_THERE_IS_NO_PII).toHaveBeenCalledWith(
+      'mlflow.gateway.edit-endpoint.starter-code',
+      'onOpenTryIt',
+      {
+        provider: 'typesafe',
+        apiVariant: 'typesafe-systemone',
+        language: 'curl',
+      },
+    );
 
     const request = JSON.parse((screen.getAllByRole('textbox')[0] as HTMLTextAreaElement).value);
     expect(request).toEqual({
@@ -137,6 +158,15 @@ describe('StarterCodeCard', () => {
     await userEvent.click(screen.getByText('Anthropic Messages'));
     const codeBlock = document.querySelector('pre');
     expect(codeBlock?.textContent).toContain('anthropic/v1/messages');
+    expect(telemetryClient.logEventWithMetadata_I_CONFIRM_THERE_IS_NO_PII).toHaveBeenCalledWith(
+      'mlflow.gateway.edit-endpoint.starter-code',
+      'onApiChange',
+      {
+        provider: 'anthropic',
+        apiVariant: 'anthropic-messages',
+        language: 'curl',
+      },
+    );
   });
 
   it('includes unified comment in chat-completions code', () => {

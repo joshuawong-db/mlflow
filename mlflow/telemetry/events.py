@@ -530,6 +530,34 @@ class GatewayStartEvent(Event):
     name: str = "gateway_start"
 
 
+def _get_gateway_endpoint_provider_telemetry(endpoint: Any) -> dict[str, Any]:
+    providers = sorted({
+        str(provider)
+        for mapping in getattr(endpoint, "model_mappings", [])
+        if (model_definition := getattr(mapping, "model_definition", None)) is not None
+        and (provider := getattr(model_definition, "provider", None))
+    })
+    if not providers:
+        return {}
+
+    primary_provider = None
+    for mapping in getattr(endpoint, "model_mappings", []):
+        linkage_type = getattr(mapping, "linkage_type", None)
+        if (linkage_type.value if hasattr(linkage_type, "value") else linkage_type) != "PRIMARY":
+            continue
+        model_definition = getattr(mapping, "model_definition", None)
+        if model_definition is not None:
+            primary_provider = getattr(model_definition, "provider", None)
+        break
+
+    return {
+        "providers": providers,
+        "primary_provider": str(primary_provider) if primary_provider else None,
+        "has_typesafe_provider": "typesafe" in providers,
+        "mixed_providers": len(providers) > 1,
+    }
+
+
 # Gateway Resource CRUD Events
 class GatewayCreateEndpointEvent(Event):
     name: str = "gateway_create_endpoint"
@@ -544,6 +572,10 @@ class GatewayCreateEndpointEvent(Event):
             "num_model_configs": len(arguments.get("model_configs") or []),
             "usage_tracking": arguments.get("usage_tracking"),
         }
+
+    @classmethod
+    def parse_result(cls, result: Any) -> dict[str, Any] | None:
+        return _get_gateway_endpoint_provider_telemetry(result)
 
 
 class GatewayUpdateEndpointEvent(Event):
@@ -561,6 +593,10 @@ class GatewayUpdateEndpointEvent(Event):
             else None,
             "usage_tracking": arguments.get("usage_tracking"),
         }
+
+    @classmethod
+    def parse_result(cls, result: Any) -> dict[str, Any] | None:
+        return _get_gateway_endpoint_provider_telemetry(result)
 
 
 class GatewayDeleteEndpointEvent(Event):

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, type ChangeEvent } from 'react';
 import {
   Button,
   CopyIcon,
@@ -14,6 +14,7 @@ import { CodeSnippet } from '@databricks/web-shared/snippet';
 import { TryItPanel } from '../endpoints/TryItPanel';
 import type { CodingAgentType } from '../../types';
 import { CODING_AGENT_LABELS } from '../../hooks/useCreateEndpointForm';
+import { telemetryClient } from '../../../telemetry';
 
 const UNIFIED_COMMENT =
   '# Unified OpenAI compatible API for model invocations. Set the endpoint name as the model parameter.';
@@ -358,11 +359,6 @@ export const StarterCodeCard = ({ endpointName, provider }: StarterCodeCardProps
   const [isTryItOpen, setIsTryItOpen] = useState(false);
   const [tryItResetKey, setTryItResetKey] = useState(0);
 
-  const handleOpenTryIt = useCallback(() => {
-    setTryItResetKey((k) => k + 1);
-    setIsTryItOpen(true);
-  }, []);
-
   const passthrough = useMemo(() => getPassthroughForProvider(provider), [provider]);
 
   const apiOptions = useMemo(() => {
@@ -375,6 +371,44 @@ export const StarterCodeCard = ({ endpointName, provider }: StarterCodeCardProps
   }, [passthrough, provider]);
 
   const activeApi = apiOptions.some((option) => option.value === selectedApi) ? selectedApi : apiOptions[0].value;
+
+  const logStarterCodeEvent = useCallback(
+    (eventType: string, metadata?: { apiVariant?: ApiVariant; language?: 'curl' | 'python' }) => {
+      telemetryClient.logEventWithMetadata_I_CONFIRM_THERE_IS_NO_PII(
+        'mlflow.gateway.edit-endpoint.starter-code',
+        eventType,
+        {
+          provider,
+          apiVariant: metadata?.apiVariant ?? activeApi,
+          language: metadata?.language ?? language,
+        },
+      );
+    },
+    [activeApi, language, provider],
+  );
+
+  const handleApiChange = useCallback(
+    ({ target: { value } }: ChangeEvent<HTMLInputElement>) => {
+      const apiVariant = value as ApiVariant;
+      setSelectedApi(apiVariant);
+      logStarterCodeEvent('onApiChange', { apiVariant });
+    },
+    [logStarterCodeEvent],
+  );
+
+  const handleLanguageChange = useCallback(
+    (nextLanguage: 'curl' | 'python') => {
+      setLanguage(nextLanguage);
+      logStarterCodeEvent('onLanguageChange', { language: nextLanguage });
+    },
+    [logStarterCodeEvent],
+  );
+
+  const handleOpenTryIt = useCallback(() => {
+    setTryItResetKey((k) => k + 1);
+    setIsTryItOpen(true);
+    logStarterCodeEvent('onOpenTryIt');
+  }, [logStarterCodeEvent]);
 
   const base = useMemo(() => getBaseUrl(), []);
   const examples = useMemo(() => getCodeExamples(base, endpointName, activeApi), [base, endpointName, activeApi]);
@@ -414,7 +448,7 @@ export const StarterCodeCard = ({ endpointName, provider }: StarterCodeCardProps
           name="starter-code-api"
           componentId="mlflow.gateway.edit-endpoint.starter-code.api"
           value={activeApi}
-          onChange={({ target: { value } }) => setSelectedApi(value as ApiVariant)}
+          onChange={handleApiChange}
         >
           {apiOptions.map((opt) => (
             <SegmentedControlButton key={opt.value} value={opt.value}>
@@ -447,7 +481,7 @@ export const StarterCodeCard = ({ endpointName, provider }: StarterCodeCardProps
               <button
                 key={lang}
                 type="button"
-                onClick={() => setLanguage(lang)}
+                onClick={() => handleLanguageChange(lang)}
                 css={{
                   background: 'none',
                   border: 'none',

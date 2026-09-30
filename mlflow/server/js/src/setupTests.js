@@ -56,6 +56,7 @@ jest.mock('./i18n/loadMessages', () => ({
   jest.mock('./telemetry/TelemetryClient', () => ({
     telemetryClient: {
       logEvent: jest.fn(),
+      logEventWithMetadata_I_CONFIRM_THERE_IS_NO_PII: jest.fn(),
       shutdown: jest.fn(),
       start: jest.fn(),
     },
