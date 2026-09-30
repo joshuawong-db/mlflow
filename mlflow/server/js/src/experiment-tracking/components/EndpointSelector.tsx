@@ -279,6 +279,7 @@ export const EndpointSelector: React.FC<EndpointSelectorProps> = ({
           open={isCreateModalOpen}
           onClose={handleCloseCreateModal}
           onSuccess={handleCreateEndpointSuccess}
+          excludeProviders={excludeProviders}
         />
       )}
     </>

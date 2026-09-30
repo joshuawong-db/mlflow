@@ -7,9 +7,17 @@ import type { Endpoint } from '../../gateway/types';
 
 jest.mock('../../gateway/hooks/useEndpointsQuery');
 jest.mock('../../gateway/components/endpoint-form', () => ({
-  CreateEndpointModal: ({ open, onSuccess }: { open: boolean; onSuccess: (endpoint: Endpoint) => void }) =>
+  CreateEndpointModal: ({
+    open,
+    onSuccess,
+    excludeProviders,
+  }: {
+    open: boolean;
+    onSuccess: (endpoint: Endpoint) => void;
+    excludeProviders?: string[];
+  }) =>
     open ? (
-      <div data-testid="create-endpoint-modal">
+      <div data-testid="create-endpoint-modal" data-exclude-providers={(excludeProviders ?? []).join(',')}>
         Create Endpoint Modal
         <button type="button" onClick={() => onSuccess(mockTypesafeEndpoint)}>
           Complete endpoint creation
@@ -179,6 +187,24 @@ describe('EndpointSelector', () => {
 
     // Modal should be visible
     expect(screen.getByTestId('create-endpoint-modal')).toBeInTheDocument();
+  });
+
+  test('passes excluded providers to create endpoint modal', async () => {
+    jest.mocked(useEndpointsQuery).mockReturnValue({
+      data: mockEndpoints,
+      isLoading: false,
+      error: undefined,
+      refetch: mockRefetch,
+    } as any);
+
+    renderWithDesignSystem(
+      <EndpointSelector excludeProviders={['typesafe']} onEndpointSelect={mockOnEndpointSelect} />,
+    );
+
+    await userEvent.click(screen.getByRole('combobox'));
+    await userEvent.click(screen.getByText('Create new endpoint'));
+
+    expect(screen.getByTestId('create-endpoint-modal')).toHaveAttribute('data-exclude-providers', 'typesafe');
   });
 
   test('displays current endpoint name when provided', () => {
